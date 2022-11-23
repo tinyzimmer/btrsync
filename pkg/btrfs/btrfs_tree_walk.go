@@ -26,9 +26,10 @@ import (
 
 // TreeIterFunc is a function that is called for each item found in the tree. If the function returns
 // any error it is passed as lastErr to the next call of the function. If the error wraps the
-// ErrStopIteration error, the iteration is stopped.
+// ErrStopWalk error, the iteration is stopped.
 type TreeIterFunc func(hdr SearchHeader, item TreeItem, lastErr error) error
 
+// ErrStopWalk is an error that can be returned by the TreeIterFunc to stop the tree walk.
 var ErrStopWalk = fmt.Errorf("stop btrfs walk")
 
 // WalkBtrfsTree walks the Btrfs tree at the given path with the given search arguments.
