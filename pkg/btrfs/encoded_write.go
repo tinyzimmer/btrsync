@@ -26,6 +26,7 @@ var (
 	ErrEncryptionNotSupported = errors.New("encryption not supported")
 )
 
+// EncodedWriteOp is an operation to write encoded data to a file.
 type EncodedWriteOp struct {
 	Offset              uint64
 	Data                []byte
@@ -36,6 +37,7 @@ type EncodedWriteOp struct {
 	Encryption          uint32 // Not supported yet
 }
 
+// Decompress decompresses the data in the EncodedWriteOp.
 func (e *EncodedWriteOp) Decompress() ([]byte, error) {
 	switch e.Compression {
 	case CompressionNone:
@@ -51,6 +53,7 @@ func (e *EncodedWriteOp) Decompress() ([]byte, error) {
 	}
 }
 
+// EncodedWrite writes encoded data to a file via ioctl.
 func EncodedWrite(path string, op *EncodedWriteOp) error {
 	if op.Encryption != 0 {
 		return fmt.Errorf("EncodedWrite: %w", ErrEncryptionNotSupported)

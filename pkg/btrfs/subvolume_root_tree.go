@@ -22,6 +22,8 @@ import (
 	"time"
 )
 
+// BuildRBTree builds a red-black tree from the subvolume root tree. Colors are
+// currently not assigned as they are not needed for the current implementation.
 func BuildRBTree(path string) (*RBRoot, error) {
 	f, err := os.OpenFile(path, os.O_RDONLY, os.ModeDir)
 	if err != nil {
@@ -44,7 +46,7 @@ func BuildRBTree(path string) (*RBRoot, error) {
 		Max_type:     uint32(RootBackrefKey),
 		Nr_items:     4096,
 	}
-	tree := NewRBRoot()
+	tree := newRBRoot()
 	err = walkBtrfsTreeFd(f.Fd(), searchKey, func(hdr SearchHeader, item TreeItem, lastErr error) error {
 		if lastErr != nil {
 			return lastErr

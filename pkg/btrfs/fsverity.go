@@ -20,6 +20,7 @@ import (
 	"unsafe"
 )
 
+// EnableVerity enables fs-verity on a path.
 func EnableVerity(path string, algorithm uint32, blockSize uint32, salt []byte, sig []byte) error {
 	return enableVerity(path, algorithm, blockSize, salt, sig)
 }

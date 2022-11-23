@@ -68,7 +68,7 @@ type RootInfo struct {
 	Ref  *BtrfsRootRef
 }
 
-func NewRBRoot() *RBRoot { return &RBRoot{} }
+func newRBRoot() *RBRoot { return &RBRoot{} }
 
 func (r *RBRoot) InsertRoot(info *RootInfo) {
 	if r.RBNode == nil {

@@ -29,6 +29,7 @@ type DeviceInfo struct {
 	Path       string
 }
 
+// GetDeviceInfo returns information about a device at the given path.
 func GetDeviceInfo(path string) (*DeviceInfo, error) {
 	f, err := os.Open(path)
 	if err != nil {

@@ -17,6 +17,7 @@ package btrfs
 
 import "os"
 
+// Clone clones a range of bytes from a source file to a destination file.
 func Clone(src string, dest string, srcOffset uint64, destOffset uint64, size uint64) error {
 	return clone(src, dest, srcOffset, destOffset, size)
 }
