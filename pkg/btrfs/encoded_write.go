@@ -1,0 +1,80 @@
+package btrfs
+
+import (
+	"errors"
+	"fmt"
+	"os"
+	"unsafe"
+)
+
+var (
+	ErrEncryptionNotSupported = errors.New("encryption not supported")
+)
+
+type EncodedWriteOp struct {
+	Offset              uint64
+	Data                []byte
+	UnencodedFileLength uint64
+	UnencodedLength     uint64
+	UnencodedOffset     uint64
+	Compression         CompressionType
+	Encryption          uint32 // Not supported yet
+}
+
+func (e *EncodedWriteOp) Decompress() ([]byte, error) {
+	switch e.Compression {
+	case CompressionNone:
+		return e.Data, nil
+	case CompressionZLib:
+		return decompressZlip(e.Data)
+	case CompressionLZO4k, CompressionLZO8k, CompressionLZO16k, CompressionLZO32k, CompressionLZO64k:
+		return decompressLzo(e.Data, len(e.Data), int(e.UnencodedLength))
+	case CompressionZSTD:
+		return decompressZstd(e.Data)
+	default:
+		return nil, fmt.Errorf("Decompress: unknown compression type %d", e.Compression)
+	}
+}
+
+func EncodedWrite(path string, op *EncodedWriteOp) error {
+	if op.Encryption != 0 {
+		return fmt.Errorf("EncodedWrite: %w", ErrEncryptionNotSupported)
+	}
+	args := encodedIOArgs{
+		Iov: &ioVec{
+			IovBase: uintptr(unsafe.Pointer(&op.Data[0])),
+			IovLen:  uint64(len(op.Data)),
+		},
+		Iovcnt:           1,
+		Offset:           int64(op.Offset),
+		Len:              op.UnencodedFileLength,
+		Unencoded_len:    op.UnencodedLength,
+		Unencoded_offset: op.UnencodedOffset,
+		Compression:      uint32(op.Compression),
+		Encryption:       op.Encryption,
+	}
+	f, err := os.OpenFile(path, os.O_RDWR, 0600)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	return callWriteIoctl(f.Fd(), BTRFS_IOC_ENCODED_WRITE, &args)
+}
+
+type encodedIOArgs struct {
+	Iov              *ioVec
+	Iovcnt           uint64
+	Offset           int64
+	Flags            uint64
+	Len              uint64
+	Unencoded_len    uint64
+	Unencoded_offset uint64
+	Compression      uint32
+	Encryption       uint32
+	Reserved         [64]uint8
+}
+
+type ioVec struct {
+	IovBase uintptr
+	IovLen  uint64
+}

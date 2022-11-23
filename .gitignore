@@ -1,0 +1,7 @@
+# Object files from debugging
+_obj/
+
+# Scrap area for testing
+test-area/
+btrsync.toml
+bin/
