@@ -2,6 +2,10 @@ module github.com/tinyzimmer/btrsync
 
 go 1.19
 
+retract (
+	v0.0.1
+)
+
 require (
 	github.com/blang/vfs v1.0.0
 	github.com/google/uuid v1.3.0
