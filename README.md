@@ -1,5 +1,7 @@
 # btrsync
 
+[![Go Reference](https://pkg.go.dev/badge/github.com/tinyzimmer/btrsync.svg)](https://pkg.go.dev/github.com/tinyzimmer/btrsync)
+
 A library and tool for working with btrfs filesystems and snapshots in Golang.
 
 ## Features
