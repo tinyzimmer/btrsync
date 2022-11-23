@@ -2,9 +2,7 @@ module github.com/tinyzimmer/btrsync
 
 go 1.19
 
-retract (
-	v0.0.1
-)
+retract v0.0.1
 
 require (
 	github.com/blang/vfs v1.0.0
