@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"syscall"
 )
 
 // TreeIterFunc is a function that is called for each item found in the tree. If the function returns
@@ -35,12 +36,25 @@ var ErrStopWalk = fmt.Errorf("stop btrfs walk")
 // WalkBtrfsTree walks the Btrfs tree at the given path with the given search arguments.
 // The TreeIterFunc is called for each item found in the tree.
 func WalkBtrfsTree(path string, params SearchParams, fn TreeIterFunc) error {
+	return walkBtrfsTreeRetryBadFD(path, params, fn, true)
+}
+
+func walkBtrfsTreeRetryBadFD(path string, params SearchParams, fn TreeIterFunc, retry bool) error {
 	f, err := os.OpenFile(path, os.O_RDONLY, os.ModeDir)
 	if err != nil {
 		return fmt.Errorf("open file: %w", err)
 	}
-	defer f.Close()
-	return walkBtrfsTreeFd(f.Fd(), params, fn)
+	err = walkBtrfsTreeFd(f.Fd(), params, fn)
+	if err != nil {
+		f.Close()
+		// Hack to work around a bug in the kernel that causes the ioctl to fail with EBADFD
+		// when the file descriptor is closed and reopened. This is fixed in kernel 5.4.
+		if retry && errors.Is(err, syscall.EBADFD) {
+			return walkBtrfsTreeRetryBadFD(path, params, fn, false)
+		}
+		return fmt.Errorf("walk btrfs tree: %w", err)
+	}
+	return f.Close()
 }
 
 func walkBtrfsTreeFd(fd uintptr, params SearchParams, fn TreeIterFunc) error {

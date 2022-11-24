@@ -17,19 +17,18 @@ package receive
 
 import (
 	"context"
-	"io"
 	"log"
 
 	"github.com/tinyzimmer/btrsync/pkg/receive/receivers"
 )
 
-// ReceiveOption is a function that can be passed to ProcessSendStream to configure
+// Option is a function that can be passed to ProcessSendStream to configure
 // the behavior of the receiver.
-type ReceiveOption func(*receiveCtx) error
+type Option func(*receiveCtx) error
 
 // HonorEndCommand will cause the receiver to stop processing the stream when it
 // encounters a BTRFS_SEND_C_END command.
-func HonorEndCommand() ReceiveOption {
+func HonorEndCommand() Option {
 	return func(args *receiveCtx) error {
 		args.honorEndCmd = true
 		return nil
@@ -39,7 +38,7 @@ func HonorEndCommand() ReceiveOption {
 // WithLogger will set the logger for the receiver to use. Defaults to a logger
 // that discards all output. Increasing the verbosity will cause the logger to
 // print more information about the processing of the stream.
-func WithLogger(logger *log.Logger, verbosity int) ReceiveOption {
+func WithLogger(logger *log.Logger, verbosity int) Option {
 	return func(args *receiveCtx) error {
 		args.log = logger
 		args.verbosity = verbosity
@@ -49,7 +48,7 @@ func WithLogger(logger *log.Logger, verbosity int) ReceiveOption {
 
 // WithMaxErrors will set the maximum number of errors that can occur before the
 // receiver stops processing the stream. Defaults to 1.
-func WithMaxErrors(maxErrors int) ReceiveOption {
+func WithMaxErrors(maxErrors int) Option {
 	return func(args *receiveCtx) error {
 		args.maxErrors = maxErrors
 		return nil
@@ -58,7 +57,7 @@ func WithMaxErrors(maxErrors int) ReceiveOption {
 
 // WithContext will set the context for the receiver to use. Defaults to a
 // background context.
-func WithContext(ctx context.Context) ReceiveOption {
+func WithContext(ctx context.Context) Option {
 	return func(args *receiveCtx) error {
 		args.Context = ctx
 		return nil
@@ -68,7 +67,7 @@ func WithContext(ctx context.Context) ReceiveOption {
 // ForceDecompress will cause the receiver to decompress any compressed data
 // it encounters in the stream. This is useful if the stream is compressed
 // but the receiver does not support compression.
-func ForceDecompress() ReceiveOption {
+func ForceDecompress() Option {
 	return func(args *receiveCtx) error {
 		args.forceDecompress = true
 		return nil
@@ -77,7 +76,7 @@ func ForceDecompress() ReceiveOption {
 
 // IgnoreChecksums will cause the receiver to ignore crc32 checksums in the stream.
 // This has no effect on IncrementAgainst.
-func IgnoreChecksums() ReceiveOption {
+func IgnoreChecksums() Option {
 	return func(args *receiveCtx) error {
 		args.ignoreChecksums = true
 		return nil
@@ -85,19 +84,18 @@ func IgnoreChecksums() ReceiveOption {
 }
 
 // To will set the receiver to use for the stream. Defaults to a nop receiver.
-func To(rcvr receivers.Receiver) ReceiveOption {
+func To(rcvr receivers.Receiver) Option {
 	return func(args *receiveCtx) error {
 		args.receiver = rcvr
 		return nil
 	}
 }
 
-// IncrementAgainst will cause the receiver to incrementally receive the stream
-// against the stream in the given reader. This is useful for receiving a
-// subvolume incrementally over an unreliable connection.
-func IncrementAgainst(r io.Reader) ReceiveOption {
+// FromOffset will start processing the stream at the given command offset.
+// This is useful if you want to resume a stream that was interrupted.
+func FromOffset(offset uint64) Option {
 	return func(args *receiveCtx) error {
-		args.incrementAgainst = r
+		args.startOffset = offset
 		return nil
 	}
 }

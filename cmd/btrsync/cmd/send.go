@@ -17,7 +17,6 @@ package cmd
 
 import (
 	"errors"
-	"io"
 	"log"
 	"os"
 
@@ -64,7 +63,7 @@ func send(cmd *cobra.Command, args []string) error {
 		}
 
 	}
-	var dest io.WriteCloser
+	var dest *os.File
 	if sendfile != "" {
 		logger.Printf("Sending to file %s", sendfile)
 		dest, err = os.Create(sendfile)
@@ -86,8 +85,8 @@ func send(cmd *cobra.Command, args []string) error {
 	defer dest.Close()
 	var opts []btrfs.SendOption
 	opts = append(opts,
-		btrfs.SendToWriter(dest),
-		btrfs.SendWithLogger(log.New(os.Stderr, "[send]", log.LstdFlags|log.Lshortfile), config.Verbosity),
+		btrfs.SendToFile(dest),
+		btrfs.SendWithLogger(log.New(os.Stderr, "[send]", log.LstdFlags|log.Lshortfile), conf.Verbosity),
 	)
 	if compressed {
 		opts = append(opts, btrfs.SendCompressedData())

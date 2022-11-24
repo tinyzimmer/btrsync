@@ -24,7 +24,7 @@ import (
 	"github.com/google/uuid"
 )
 
-type SearchOption func(*searchContext)
+type SearchOption func(*searchContext) error
 
 type searchContext struct {
 	// The root mount point of the filesystem to search
@@ -44,8 +44,9 @@ type searchContext struct {
 
 // SearchWithRootID searches for a subvolume starting from the given root ID.
 func SearchWithRootID(id uint64) SearchOption {
-	return func(opts *searchContext) {
+	return func(opts *searchContext) error {
 		opts.rootID = id
+		return nil
 	}
 }
 
@@ -53,46 +54,59 @@ func SearchWithRootID(id uint64) SearchOption {
 // If not provided, the search will start from the root of the filesystem. You can use the
 // FindRootMount function to find the root mount point of a given path.
 func SearchWithRootMount(path string) SearchOption {
-	return func(opts *searchContext) {
+	return func(opts *searchContext) error {
 		opts.rootMount = path
+		return nil
 	}
 }
 
-// SearchWithPath searches for a subvolume starting from the given path.
+// SearchWithPath searches for a subvolume starting from the given path. Implies
+// SearchWithRootMount and root detection with FindRootMount.
 func SearchWithPath(path string) SearchOption {
-	return func(opts *searchContext) {
+	return func(opts *searchContext) error {
+		root, err := FindRootMount(path)
+		if err != nil {
+			return err
+		}
 		opts.path = path
+		return SearchWithRootMount(root)(opts)
 	}
 }
 
 // SearchWithUUID searches for a subvolume with the given UUID.
 func SearchWithUUID(uuid uuid.UUID) SearchOption {
-	return func(opts *searchContext) {
+	return func(opts *searchContext) error {
 		opts.uuid = uuid
+		return nil
 	}
 }
 
 // SearchWithReceivedUUID searches for a subvolume with the given received UUID.
 func SearchWithReceivedUUID(uuid uuid.UUID) SearchOption {
-	return func(opts *searchContext) {
+	return func(opts *searchContext) error {
 		opts.receivedUUID = uuid
+		return nil
 	}
 }
 
 // SearchWithSnapshots searches for snapshots of the given subvolume and populates
 // the results with them.
 func SearchWithSnapshots() SearchOption {
-	return func(opts *searchContext) {
+	return func(opts *searchContext) error {
 		opts.searchSnapshots = true
+		return nil
 	}
 }
 
 // SubvolumeSearch searches for a subvolume using the given options.
 func SubvolumeSearch(opts ...SearchOption) (*RootInfo, error) {
+	// Apply search options
 	var ctx searchContext
 	ctx.rootMount = "/"
 	for _, opt := range opts {
-		opt(&ctx)
+		if err := opt(&ctx); err != nil {
+			return nil, err
+		}
 	}
 
 	// Find the root id
@@ -102,6 +116,9 @@ func SubvolumeSearch(opts ...SearchOption) (*RootInfo, error) {
 			var f *os.File
 			f, err = os.OpenFile(ctx.path, os.O_RDONLY, os.ModeDir)
 			if err != nil {
+				if os.IsNotExist(err) {
+					return nil, fmt.Errorf("%w: path %q does not exist", ErrNotFound, ctx.path)
+				}
 				return nil, err
 			}
 			defer f.Close()
@@ -128,10 +145,13 @@ func SubvolumeSearch(opts ...SearchOption) (*RootInfo, error) {
 		Flags:              rootItem.Flags,
 		Generation:         rootItem.Generation,
 		OriginalGeneration: rootItem.Otransid,
-		CreationTime:       time.Unix(int64(rootItem.Ctime.Sec), int64(rootItem.Ctime.Nsec)),
+		CreationTime:       time.Unix(int64(rootItem.Otime.Sec), int64(rootItem.Otime.Nsec)),
+		SendTime:           time.Unix(int64(rootItem.Stime.Sec), int64(rootItem.Stime.Nsec)),
+		ReceiveTime:        time.Unix(int64(rootItem.Rtime.Sec), int64(rootItem.Rtime.Nsec)),
 		UUID:               rootItem.Uuid,
 		ParentUUID:         rootItem.Parent_uuid,
 		ReceivedUUID:       rootItem.Received_uuid,
+		Item:               rootItem,
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert root item to subvolume info: %w", err)

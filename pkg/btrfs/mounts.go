@@ -17,10 +17,30 @@ package btrfs
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+)
+
+// IsBtrfs returns true if the given path is a btrfs mount.
+func IsBtrfs(path string) (bool, error) {
+	path, err := filepath.Abs(path)
+	if err != nil {
+		return false, err
+	}
+	_, err = FindRootMount(path)
+	if err != nil {
+		if errors.Is(err, ErrRootMountNotFound) {
+			return false, nil
+		}
+	}
+	return true, nil
+}
+
+var (
+	ErrRootMountNotFound = fmt.Errorf("could not find root mount for path")
 )
 
 // FindRootMount returns the root btrfs mount for the given path.
@@ -54,7 +74,7 @@ func FindRootMount(path string) (string, error) {
 		}
 	}
 	if rootMount == "" {
-		return "", fmt.Errorf("could not find root mount for path %s", path)
+		return "", fmt.Errorf("%w %s", ErrRootMountNotFound, path)
 	}
 	return rootMount, nil
 }

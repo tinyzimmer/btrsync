@@ -16,13 +16,13 @@ If not, see <https://www.gnu.org/licenses/>.
 package cmd
 
 import (
-	"fmt"
-	"os"
+	"context"
 	"path/filepath"
-	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/tinyzimmer/btrsync/pkg/btrfs"
+
+	"github.com/tinyzimmer/btrsync/cmd/btrsync/cmd/snapmanager"
+	"github.com/tinyzimmer/btrsync/cmd/btrsync/cmd/syncmanager"
 )
 
 func NewRunCommand() *cobra.Command {
@@ -34,33 +34,57 @@ func NewRunCommand() *cobra.Command {
 }
 
 func run(cmd *cobra.Command, args []string) error {
-	if err := ensureSnapshotSubvolumes(); err != nil {
+	logger.Println("Running local snapshot operations...")
+	if err := handleSnapshots(); err != nil {
 		return err
 	}
-	logger.Println("Creating snapshots...")
-	if err := createSnapshots(); err != nil {
+	logger.Println("Running sync operations...")
+	if err := handleSync(); err != nil {
 		return err
 	}
+	logger.Println("Done.")
 	return nil
 }
 
-func createSnapshots() error {
-	for _, vol := range config.Volumes {
-		for _, subvol := range vol.Subvolumes {
-			snapDir := config.ResolveSnapshotPath(vol.GetName(), subvol.GetName())
-			snapName := fmt.Sprintf("%s.%s",
-				subvol.GetSnapshotName(),
-				time.Now().Format("2006-01-02_15-04-05"))
-			sourcePath := filepath.Join(vol.Path, subvol.Path)
-			snapFullPath := filepath.Join(snapDir, snapName)
-			if config.Verbosity >= 1 {
-				logger.Printf("Creating read-only snapshot %q from %q\n", snapFullPath, sourcePath)
+func handleSnapshots() error {
+	for _, vol := range conf.Volumes {
+		volumeName := vol.GetName()
+		if vol.Disabled {
+			if conf.Verbosity >= 1 {
+				logger.Printf("Skipping disabled volume %s: %s", volumeName, vol.Path)
 			}
-			if err := btrfs.CreateSnapshot(
-				sourcePath,
-				btrfs.WithSnapshotPath(snapFullPath),
-				btrfs.WithReadOnlySnapshot(),
-			); err != nil {
+			continue
+		}
+		for _, subvol := range vol.Subvolumes {
+			subvolName := subvol.GetName()
+			if subvol.Disabled {
+				if conf.Verbosity >= 1 {
+					logger.Printf("Skipping disabled subvolume %s: %s", subvolName, subvol.Path)
+				}
+				continue
+			}
+			logger.Printf("Ensuring snapshots for subvolume %s/%s...", vol.Path, subvol.Path)
+			snapDir := conf.ResolveSnapshotPath(volumeName, subvolName)
+			sourcePath := filepath.Join(vol.Path, subvol.Path)
+			manager, err := snapmanager.New(&snapmanager.Config{
+				FullSubvolumePath:         sourcePath,
+				SnapshotName:              subvol.GetSnapshotName(),
+				SnapshotDirectory:         snapDir,
+				SnapshotInterval:          conf.ResolveSnapshotInterval(volumeName, subvolName),
+				SnapshotMinimumRetention:  conf.ResolveSnapshotMinimumRetention(volumeName, subvolName),
+				SnapshotRetention:         conf.ResolveSnapshotRetention(volumeName, subvolName),
+				SnapshotRetentionInterval: conf.ResolveSnapshotRetentionInterval(volumeName, subvolName),
+				TimeFormat:                conf.ResolveTimeFormat(volumeName, subvolName),
+				Logger:                    logger,
+				Verbosity:                 conf.Verbosity,
+			})
+			if err != nil {
+				return err
+			}
+			if err := manager.EnsureMostRecentSnapshot(); err != nil {
+				return err
+			}
+			if err := manager.PruneSnapshots(); err != nil {
 				return err
 			}
 		}
@@ -68,27 +92,58 @@ func createSnapshots() error {
 	return nil
 }
 
-func ensureSnapshotSubvolumes() error {
-	for _, vol := range config.Volumes {
-	Subvolumes:
+func handleSync() error {
+	for _, vol := range conf.Volumes {
+		volumeName := vol.GetName()
+		if vol.Disabled {
+			if conf.Verbosity >= 1 {
+				logger.Printf("Skipping disabled volume %s: %s", volumeName, vol.Path)
+			}
+			continue
+		}
 		for _, subvol := range vol.Subvolumes {
-			snapDir := config.ResolveSnapshotPath(vol.GetName(), subvol.GetName())
-			isSubvol, err := btrfs.IsSubvolume(snapDir)
-			if err != nil {
-				if !os.IsNotExist(err) {
+			subvolName := subvol.GetName()
+			if subvol.Disabled {
+				if conf.Verbosity >= 1 {
+					logger.Printf("Skipping disabled subvolume %s: %s", subvolName, subvol.Path)
+				}
+				continue
+			}
+			mirrors := conf.ResolveMirrors(volumeName, subvolName)
+			if len(mirrors) == 0 {
+				if conf.Verbosity >= 1 {
+					logger.Printf("Skipping subvolume %s/%s: no mirrors configured", vol.Path, subvol.Path)
+				}
+				continue
+			}
+			logger.Printf("Running sync for subvolume %s/%s...", vol.Path, subvol.Path)
+			snapDir := conf.ResolveSnapshotPath(volumeName, subvolName)
+			sourcePath := filepath.Join(vol.Path, subvol.Path)
+			for _, mirror := range mirrors {
+				if mirror.Disabled {
+					if conf.Verbosity >= 1 {
+						logger.Printf("Skipping disabled mirror: %s", mirror.Path)
+					}
+					continue
+				}
+				manager, err := syncmanager.New(&syncmanager.Config{
+					SubvolumeIdentifier: subvol.GetName(),
+					FullSubvolumePath:   sourcePath,
+					SnapshotName:        subvol.GetSnapshotName(),
+					SnapshotDirectory:   snapDir,
+					Logger:              logger,
+					Verbosity:           conf.Verbosity,
+					MirrorPath:          mirror.Path,
+				})
+				if err != nil {
 					return err
 				}
-				logger.Printf("Creating snapshot subvolume %s\n", snapDir)
-				if err := btrfs.CreateSubvolume(snapDir); err != nil {
+				if err := manager.Sync(context.Background()); err != nil {
 					return err
 				}
-				continue Subvolumes
-			}
-			if !isSubvol {
-				return fmt.Errorf("%s is not a btrfs subvolume", snapDir)
-			}
-			if config.Verbosity >= 2 {
-				logger.Printf("Snapshot subvolume %s already exists\n", snapDir)
+				if err := manager.Prune(context.Background()); err != nil {
+					return err
+				}
 			}
 		}
 	}

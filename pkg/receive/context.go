@@ -17,7 +17,6 @@ package receive
 
 import (
 	"context"
-	"io"
 	"log"
 
 	"github.com/tinyzimmer/btrsync/pkg/receive/receivers"
@@ -26,14 +25,14 @@ import (
 type receiveCtx struct {
 	context.Context
 	// Options
-	log              *log.Logger
-	verbosity        int
-	maxErrors        int
-	honorEndCmd      bool
-	forceDecompress  bool
-	receiver         receivers.Receiver
-	ignoreChecksums  bool
-	incrementAgainst io.Reader
+	log             *log.Logger
+	verbosity       int
+	maxErrors       int
+	honorEndCmd     bool
+	forceDecompress bool
+	receiver        receivers.Receiver
+	ignoreChecksums bool
+	startOffset     uint64
 	// State
 	currentSubvolInfo *receivers.ReceivingSubvolume
 	// Channel for returned error, if any

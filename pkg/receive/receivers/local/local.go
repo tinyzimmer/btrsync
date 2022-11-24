@@ -56,27 +56,42 @@ func (n *localReceiver) Snapshot(ctx receivers.ReceiveContext, path string, uuid
 	if ctx.Verbosity() >= 3 {
 		ctx.Log().Printf("searching for parent subvolume of snapshot %q\n", path)
 	}
-	path = n.resolvePath(ctx, path)
-	var parent *btrfs.RootInfo
-	var err error
-	parent, err = btrfs.SubvolumeSearch(btrfs.SearchWithRootMount(n.destPath), btrfs.SearchWithReceivedUUID(cloneUUID))
+	root, err := btrfs.FindRootMount(n.destPath)
 	if err != nil {
-		// Fallback search to regular UUID
-		parent, err = btrfs.SubvolumeSearch(btrfs.SearchWithRootMount(n.destPath), btrfs.SearchWithUUID(cloneUUID))
-		if err != nil {
-			return fmt.Errorf("cannot find parent subvolume for snapshot: %w", err)
+		return fmt.Errorf("failed to find root mount for %s: %w", n.destPath, err)
+	}
+	rbtree, err := btrfs.BuildRBTree(root)
+	if err != nil {
+		return fmt.Errorf("failed to build rbtree for %s: %w", root, err)
+	}
+	var parent *btrfs.RootInfo
+	rbtree.PostOrderIterate(func(node *btrfs.RootInfo, lastErr error) error {
+		if node.Deleted {
+			return nil
 		}
+		if ctx.Verbosity() >= 3 {
+			ctx.Log().Printf("checking if %s (%d) matches with subvolume %s (%d)\n", cloneUUID, ctransid, node.ReceivedUUID, node.Item.Stransid)
+		}
+		if node.ReceivedUUID == cloneUUID && node.Item.Stransid == cloneCtransid {
+			if ctx.Verbosity() >= 3 {
+				ctx.Log().Printf("found parent subvolume %s (%s) for snapshot %s\n", node.FullPath, node.ReceivedUUID, path)
+			}
+			parent = node
+			return btrfs.ErrStopTreeIteration
+		}
+		return nil
+	})
+	if parent == nil {
+		return fmt.Errorf("could not find parent subvolume for snapshot %q", path)
 	}
-	var src string
-	if parent.Path == "" {
-		src = n.destPath
-	} else {
-		src = filepath.Join(n.destPath, parent.Path)
-	}
+	dest := filepath.Join(n.destPath, path)
 	if ctx.Verbosity() >= 2 {
-		ctx.Log().Printf("creating snapshot of %q to %q\n", src, path)
+		ctx.Log().Printf("creating snapshot of %q at %q\n", parent.FullPath, dest)
 	}
-	return btrfs.CreateSnapshot(src, btrfs.WithSnapshotPath(path))
+	if err := btrfs.CreateSnapshot(parent.FullPath, btrfs.WithSnapshotPath(dest)); err != nil {
+		return err
+	}
+	return btrfs.SyncFilesystem(dest)
 }
 
 func (n *localReceiver) Mkfile(ctx receivers.ReceiveContext, path string, ino uint64) error {
@@ -317,11 +332,27 @@ func (n *localReceiver) Fileattr(ctx receivers.ReceiveContext, path string, attr
 func (n *localReceiver) FinishSubvolume(ctx receivers.ReceiveContext) error {
 	curVol := ctx.CurrentSubvolume()
 	path := filepath.Join(n.destPath, curVol.Path)
+	isReadOnly, err := btrfs.IsSubvolumeReadOnly(path)
+	if err != nil {
+		return err
+	}
+	if isReadOnly {
+		if ctx.Verbosity() >= 3 {
+			ctx.Log().Printf("setting subvolume %q read-write temporarily to finish operations\n", path)
+		}
+		err = btrfs.SetSubvolumeReadOnly(path, false)
+		if err != nil {
+			return err
+		}
+	}
 	if ctx.Verbosity() >= 2 {
 		ctx.Log().Printf("finish subvolume %s with uuid=%s ctransid=%d\n", curVol.Path, curVol.UUID, curVol.Ctransid)
 	}
 	if err := btrfs.SetReceivedSubvolume(path, curVol.UUID, curVol.Ctransid); err != nil {
 		return err
 	}
-	return btrfs.SetSubvolumeReadOnly(path, true)
+	if err := btrfs.SetSubvolumeReadOnly(path, true); err != nil {
+		return err
+	}
+	return btrfs.SyncFilesystem(path)
 }

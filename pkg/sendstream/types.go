@@ -169,6 +169,10 @@ type CmdHeader struct {
 	Crc uint32
 }
 
+func (c CmdHeader) IsZero() bool {
+	return c.Len == 0 && c.Cmd == 0 && c.Crc == 0
+}
+
 type CmdAttrs map[SendAttribute][]byte
 
 func (c CmdAttrs) SubvolInfo(cmd SendCommand) (*receivers.ReceivingSubvolume, error) {

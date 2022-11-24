@@ -45,7 +45,7 @@ func runReceive(cmd *cobra.Command, args []string) error {
 	var src io.Reader = os.Stdin
 	var err error
 	if receivefile != "" {
-		if config.Verbosity > 0 {
+		if conf.Verbosity > 0 {
 			logger.Printf("Receiving from file %s\n", receivefile)
 		}
 		src, err = os.Open(receivefile)
@@ -53,14 +53,14 @@ func runReceive(cmd *cobra.Command, args []string) error {
 			return err
 		}
 	} else {
-		if config.Verbosity > 0 {
+		if conf.Verbosity > 0 {
 			logger.Println("Receiving stream from stdin")
 		}
 	}
 	dest := args[0]
 	logger.Println("Receiving to", dest)
 	return receive.ProcessSendStream(src,
-		receive.WithLogger(log.New(os.Stderr, "[receive]", log.LstdFlags|log.Lshortfile), config.Verbosity),
+		receive.WithLogger(log.New(os.Stderr, "[receive]", log.LstdFlags|log.Lshortfile), conf.Verbosity),
 		receive.HonorEndCommand(),
 		receive.To(local.New(dest)),
 	)

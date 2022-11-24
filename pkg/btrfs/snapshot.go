@@ -96,7 +96,7 @@ func CreateSnapshot(source string, opts ...SnapshotOption) error {
 	if err := callWriteIoctl(uintptr(fddst), BTRFS_IOC_SNAP_CREATE_V2, args); err != nil {
 		return err
 	}
-	return SyncFilesystem(source)
+	return nil
 }
 
 // DeleteSnapshot deletes the given snapshot.

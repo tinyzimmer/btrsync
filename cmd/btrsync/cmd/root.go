@@ -21,15 +21,15 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+
+	"github.com/tinyzimmer/btrsync/cmd/btrsync/cmd/config"
 )
 
 var (
 	envPrefix = "BTRSYNC"
-
-	cfgFile string
-	config  Config
-
-	logger = log.New(os.Stderr, "", log.LstdFlags)
+	cfgFile   string
+	conf      = config.NewDefaultConfig()
+	logger    = log.New(os.Stderr, "", log.LstdFlags)
 )
 
 func Execute(version string) {
@@ -50,7 +50,7 @@ func NewRootCommand(version string) *cobra.Command {
 	}
 
 	rootCommand.PersistentFlags().StringVarP(&cfgFile, "config", "c", "", "config file")
-	rootCommand.PersistentFlags().CountVarP(&config.Verbosity, "verbose", "v", "verbosity level (can be used multiple times)")
+	rootCommand.PersistentFlags().CountVarP(&conf.Verbosity, "verbose", "v", "verbosity level (can be used multiple times)")
 
 	rootCommand.AddCommand(NewRunCommand())
 	rootCommand.AddCommand(NewSendCommand())
@@ -58,6 +58,8 @@ func NewRootCommand(version string) *cobra.Command {
 	rootCommand.AddCommand(NewPruneCommand())
 	rootCommand.AddCommand(NewTreeCommand())
 	rootCommand.AddCommand(NewMountCommand())
+	rootCommand.AddCommand(NewConfigCommand())
+	rootCommand.AddCommand(NewTimeMachineCommand())
 
 	return rootCommand
 }

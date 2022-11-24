@@ -16,6 +16,7 @@ If not, see <https://www.gnu.org/licenses/>.
 package btrfs
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -47,7 +48,7 @@ type RootInfo struct {
 	TopID              uint64
 	Generation         uint64
 	OriginalGeneration uint64
-	CreationTime       time.Time // seconds
+	CreationTime       time.Time
 	SendTime           time.Time
 	ReceiveTime        time.Time
 	UUID               uuid.UUID
@@ -56,7 +57,7 @@ type RootInfo struct {
 	Path               string
 	Name               string
 
-	// Only populated by resolving the path in a tree
+	// Only populated by resolving the path while building a tree.
 	FullPath string
 	Deleted  bool
 
@@ -182,8 +183,12 @@ func (r *RBRoot) UpdateRoot(info *RootInfo) bool {
 }
 
 // RBTreeIterFunc is the function signature for the RBTreeIterFunc.
-// Lasterr is the last error returned by the function.
+// Lasterr is the last error returned by the function. If the function returns
+// an ErrStopTreeIteration error, the iteration will stop and the error will be
+// returned by RBTree.Iterate.
 type RBTreeIterFunc func(info *RootInfo, lastErr error) error
+
+var ErrStopTreeIteration = fmt.Errorf("stop tree iteration")
 
 func (r *RBRoot) PreOrderIterate(f RBTreeIterFunc) error {
 	if r.RBNode == nil {
@@ -194,11 +199,20 @@ func (r *RBRoot) PreOrderIterate(f RBTreeIterFunc) error {
 
 func (r *RBRoot) preOrderIterate(node *RBNode, f RBTreeIterFunc, lastErr error) error {
 	lastErr = f(node.Info, lastErr)
+	if lastErr != nil && errors.Is(lastErr, ErrStopTreeIteration) {
+		return lastErr
+	}
 	if node.RBLeft != nil {
 		lastErr = r.preOrderIterate(node.RBLeft, f, lastErr)
+		if lastErr != nil && errors.Is(lastErr, ErrStopTreeIteration) {
+			return lastErr
+		}
 	}
 	if node.RBRight != nil {
 		lastErr = r.preOrderIterate(node.RBRight, f, lastErr)
+		if lastErr != nil && errors.Is(lastErr, ErrStopTreeIteration) {
+			return lastErr
+		}
 	}
 	return lastErr
 }
@@ -213,9 +227,15 @@ func (r *RBRoot) PostOrderIterate(f RBTreeIterFunc) error {
 func (r *RBRoot) postOrderIterate(node *RBNode, f RBTreeIterFunc, lastErr error) error {
 	if node.RBLeft != nil {
 		lastErr = r.postOrderIterate(node.RBLeft, f, lastErr)
+		if lastErr != nil && errors.Is(lastErr, ErrStopTreeIteration) {
+			return lastErr
+		}
 	}
 	if node.RBRight != nil {
 		lastErr = r.postOrderIterate(node.RBRight, f, lastErr)
+		if lastErr != nil && errors.Is(lastErr, ErrStopTreeIteration) {
+			return lastErr
+		}
 	}
 	return f(node.Info, lastErr)
 }
@@ -230,10 +250,19 @@ func (r *RBRoot) InOrderIterate(f RBTreeIterFunc) error {
 func (r *RBRoot) inOrderIterate(node *RBNode, f RBTreeIterFunc, lastErr error) error {
 	if node.RBLeft != nil {
 		lastErr = r.inOrderIterate(node.RBLeft, f, lastErr)
+		if lastErr != nil && errors.Is(lastErr, ErrStopTreeIteration) {
+			return lastErr
+		}
 	}
 	lastErr = f(node.Info, lastErr)
+	if lastErr != nil && errors.Is(lastErr, ErrStopTreeIteration) {
+		return lastErr
+	}
 	if node.RBRight != nil {
 		lastErr = r.inOrderIterate(node.RBRight, f, lastErr)
+		if lastErr != nil && errors.Is(lastErr, ErrStopTreeIteration) {
+			return lastErr
+		}
 	}
 	return lastErr
 }
@@ -260,7 +289,7 @@ func (r *RBRoot) resolveFullPaths(rootFd uintptr, topID uint64) error {
 		for uint64(next) != topID && next != FSTreeObjectID {
 			found := r.LookupRoot(next)
 			if found == nil {
-				return fmt.Errorf("failed to find root %d", next)
+				break
 			}
 			fullpath = found.Name + "/" + fullpath
 			next = found.RefTree

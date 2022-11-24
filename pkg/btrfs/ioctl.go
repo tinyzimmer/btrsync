@@ -23,7 +23,7 @@ import (
 	"unsafe"
 )
 
-func callReadIoctl[T any](fd uintptr, c IoctlCmd, out *T) error {
+func callReadIoctl(fd uintptr, c IoctlCmd, out any) error {
 	buf := make([]byte, c.Size())
 	if err := ioctlBytes(fd, c, buf); err != nil {
 		return err
@@ -31,7 +31,7 @@ func callReadIoctl[T any](fd uintptr, c IoctlCmd, out *T) error {
 	return decodeStructure(buf, out)
 }
 
-func callWriteIoctl[T any](fd uintptr, c IoctlCmd, data *T) error {
+func callWriteIoctl(fd uintptr, c IoctlCmd, data any) error {
 	buf, err := encodeStructure(data)
 	if err != nil {
 		return err
@@ -44,12 +44,12 @@ func callWriteIoctl[T any](fd uintptr, c IoctlCmd, data *T) error {
 }
 
 // decodeStructure decodes a structure from a byte slice.
-func decodeStructure[T any](data []byte, out *T) error {
+func decodeStructure(data []byte, out any) error {
 	return binary.Read(bytes.NewReader(data), binary.LittleEndian, out)
 }
 
 // encodeStructure encodes a structure into a byte slice.
-func encodeStructure[T any](data *T) ([]byte, error) {
+func encodeStructure(data any) ([]byte, error) {
 	buf := new(bytes.Buffer)
 	if err := binary.Write(buf, binary.LittleEndian, data); err != nil {
 		return nil, err

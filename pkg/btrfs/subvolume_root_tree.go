@@ -29,7 +29,6 @@ func BuildRBTree(path string) (*RBRoot, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
 	rootID, err := lookupRootIDFromFd(f.Fd())
 	if err != nil {
 		return nil, fmt.Errorf("failed to find root id: %w", err)
@@ -64,7 +63,7 @@ func BuildRBTree(path string) (*RBRoot, error) {
 					Flags:              rootItem.Flags,
 					Generation:         rootItem.Generation,
 					OriginalGeneration: rootItem.Otransid,
-					CreationTime:       time.Unix(int64(rootItem.Ctime.Sec), int64(rootItem.Ctime.Nsec)),
+					CreationTime:       time.Unix(int64(rootItem.Otime.Sec), int64(rootItem.Otime.Nsec)),
 					SendTime:           time.Unix(int64(rootItem.Stime.Sec), int64(rootItem.Stime.Nsec)),
 					ReceiveTime:        time.Unix(int64(rootItem.Rtime.Sec), int64(rootItem.Rtime.Nsec)),
 					UUID:               rootItem.Uuid,
@@ -104,5 +103,5 @@ func BuildRBTree(path string) (*RBRoot, error) {
 	if err := tree.resolveFullPaths(f.Fd(), rootID); err != nil {
 		return nil, fmt.Errorf("failed to resolve full paths: %w", err)
 	}
-	return tree, nil
+	return tree, f.Close()
 }

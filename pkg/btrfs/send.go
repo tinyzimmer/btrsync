@@ -22,16 +22,13 @@ import (
 	"io"
 	"log"
 	"os"
-	"sync"
 	"unsafe"
 )
 
 type sendCtx struct {
 	context.Context
 	args      *sendArgs
-	wg        sync.WaitGroup
 	osPipe    *os.File
-	errors    chan (error)
 	logger    *log.Logger
 	verbosity int
 }
@@ -107,7 +104,7 @@ func SendCompressedData() SendOption {
 	}
 }
 
-// SendToPath will send a send stream to the given path.
+// SendToPath will send a send stream to the given path as a file.
 func SendToPath(path string) SendOption {
 	return func(ctx *sendCtx) error {
 		f, err := os.Create(path)
@@ -127,35 +124,13 @@ func SendToFile(f *os.File) SendOption {
 	}
 }
 
-// SendToWriter will send a send stream to the given io.Writer.
-func SendToWriter(w io.Writer) SendOption {
-	return func(ctx *sendCtx) error {
-		rf, wf, err := os.Pipe()
-		if err != nil {
-			return err
-		}
-		ctx.osPipe = wf
-		ctx.args.Send_fd = int64(wf.Fd())
-		ctx.wg.Add(1)
-		go func() {
-			defer ctx.wg.Done()
-			defer rf.Close()
-			_, err := io.Copy(w, rf)
-			if err != nil {
-				ctx.errors <- fmt.Errorf("error copying send stream to writer: %w", err)
-				return
-			}
-		}()
-		return nil
+// SendToPipe creates and returns an option and pipe to read the stream from.
+func SendToPipe() (SendOption, *os.File, error) {
+	rf, wf, err := os.Pipe()
+	if err != nil {
+		return nil, nil, err
 	}
-}
-
-// SendWithContext applies a context to the send operation.
-func SendWithContext(ctx context.Context) SendOption {
-	return func(ctx *sendCtx) error {
-		ctx.Context = ctx
-		return nil
-	}
+	return SendToFile(wf), rf, nil
 }
 
 // Send will send the snapshot at source with the given options.
@@ -164,8 +139,6 @@ func Send(source string, opts ...SendOption) error {
 	ctx := &sendCtx{
 		Context: context.Background(),
 		args:    &sendArgs{Version: 2},
-		errors:  make(chan (error), 1),
-		wg:      sync.WaitGroup{},
 		logger:  log.New(io.Discard, "", 0),
 	}
 	for _, opt := range opts {
@@ -184,26 +157,14 @@ func Send(source string, opts ...SendOption) error {
 		return err
 	}
 	defer f.Close()
-	go func() {
-		if ctx.osPipe != nil {
-			defer ctx.osPipe.Close()
-		}
-		if ctx.verbosity > 1 {
-			ctx.logger.Printf("sending snapshot %s", source)
-		}
-		if err := callWriteIoctl(f.Fd(), BTRFS_IOC_SEND, ctx.args); err != nil {
-			ctx.errors <- fmt.Errorf("error sending snapshot: %w", err)
-			return
-		}
-		ctx.errors <- nil
-	}()
-	select {
-	case <-ctx.Done():
-		return fmt.Errorf("context finished: %w", ctx.Err())
-	case err := <-ctx.errors:
-		if err == nil {
-			ctx.wg.Wait()
-		}
-		return err
+	if ctx.osPipe != nil {
+		defer ctx.osPipe.Close()
 	}
+	if ctx.verbosity > 1 {
+		ctx.logger.Printf("sending snapshot %s", source)
+	}
+	if err := callWriteIoctl(f.Fd(), BTRFS_IOC_SEND, ctx.args); err != nil {
+		return fmt.Errorf("error sending snapshot: %w", err)
+	}
+	return nil
 }

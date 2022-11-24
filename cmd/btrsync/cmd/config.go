@@ -16,6 +16,7 @@ If not, see <https://www.gnu.org/licenses/>.
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -26,25 +27,20 @@ import (
 	"github.com/spf13/viper"
 )
 
-type Config struct {
-	SnapshotsDir string   `mapstructure:"snapshots_dir"`
-	Verbosity    int      `mapstructure:"verbosity"`
-	Volumes      []Volume `mapstructure:"volumes"`
-}
-
-type Volume struct {
-	Name         string      `mapstructure:"name"`
-	Path         string      `mapstructure:"path"`
-	SnapshotsDir string      `mapstructure:"snapshots_dir"`
-	Subvolumes   []Subvolume `mapstructure:"subvolumes"`
-}
-
-type Subvolume struct {
-	Name         string `mapstructure:"name"`
-	Path         string `mapstructure:"path"`
-	SnapshotsDir string `mapstructure:"snapshots_dir"`
-	SnapshotName string `mapstructure:"snapshot_name"`
-	Disabled     bool   `mapstructure:"disabled"`
+func NewConfigCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "config",
+		Short: "Print the configuration",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			out, err := json.MarshalIndent(conf, "", "  ")
+			if err != nil {
+				return err
+			}
+			fmt.Println(string(out))
+			return nil
+		},
+	}
+	return cmd
 }
 
 func initConfig(cmd *cobra.Command, args []string) error {
@@ -67,10 +63,10 @@ func initConfig(cmd *cobra.Command, args []string) error {
 	}
 
 	if err := v.ReadInConfig(); err == nil {
-		if err := v.Unmarshal(&config); err != nil {
+		if err := v.Unmarshal(&conf); err != nil {
 			return err
 		}
-		if config.Verbosity >= 1 {
+		if conf.Verbosity >= 1 {
 			logger.Println("Using config file:", v.ConfigFileUsed())
 		}
 	} else {
@@ -91,73 +87,13 @@ func initConfig(cmd *cobra.Command, args []string) error {
 		}
 	})
 
-	if config.Verbosity >= 3 {
-		logger.Printf("Config: %+v\n", config)
+	if err := conf.Validate(); err != nil {
+		return err
+	}
+
+	if conf.Verbosity >= 3 {
+		logger.Printf("Config: %+v\n", conf)
 	}
 
 	return nil
-}
-
-func (c Config) ResolveSnapshotPath(vol, subvol string) (path string) {
-	v := c.GetVolume(vol)
-	if v == nil {
-		return
-	}
-	s := v.GetSubvolume(subvol)
-	if s == nil {
-		return
-	}
-	if s.SnapshotsDir != "" {
-		path = filepath.Join(
-			v.Path,
-			s.Path,
-			s.SnapshotsDir,
-		)
-	} else if v.SnapshotsDir != "" {
-		path = filepath.Join(v.Path, v.SnapshotsDir)
-	} else if c.SnapshotsDir != "" {
-		path = filepath.Join(v.Path, c.SnapshotsDir)
-	} else {
-		path = filepath.Join(v.Path, "btrsync_snapshots")
-	}
-	return
-}
-
-func (c Config) GetVolume(name string) *Volume {
-	for _, v := range c.Volumes {
-		if v.GetName() == name {
-			return &v
-		}
-	}
-	return nil
-}
-
-func (v Volume) GetSubvolume(name string) *Subvolume {
-	for _, s := range v.Subvolumes {
-		if s.GetName() == name {
-			return &s
-		}
-	}
-	return nil
-}
-
-func (v Volume) GetName() string {
-	if v.Name != "" {
-		return v.Name
-	}
-	return filepath.Base(v.Path)
-}
-
-func (s Subvolume) GetName() string {
-	if s.Name != "" {
-		return s.Name
-	}
-	return filepath.Base(s.Path)
-}
-
-func (s Subvolume) GetSnapshotName() string {
-	if s.SnapshotName != "" {
-		return s.SnapshotName
-	}
-	return s.GetName()
 }

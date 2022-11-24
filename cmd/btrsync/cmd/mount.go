@@ -56,7 +56,7 @@ func mount(cmd *cobra.Command, args []string) error {
 	err = receive.ProcessSendStream(
 		snap,
 		receive.HonorEndCommand(),
-		receive.WithLogger(logger, config.Verbosity),
+		receive.WithLogger(logger, conf.Verbosity),
 		receive.To(fs),
 	)
 	if err != nil {
