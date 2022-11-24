@@ -64,9 +64,10 @@ func runTree(cmd *cobra.Command, args []string) error {
 		if info.RefTree == 0 || info.RootID == btrfs.FSTreeObjectID {
 			return nil
 		}
-		key := fmt.Sprintf(" %s", info.RefTree.IntString())
-		node := tree.FindByMeta(key)
-		name := fmt.Sprintf("%s (%d)", info.Path, info.RootID)
+		key := fmt.Sprintf(" %s", info.RootID.IntString())
+		lookupKey := fmt.Sprintf(" %s", info.RefTree.IntString())
+		name := info.Path
+		node := tree.FindByMeta(lookupKey)
 		if node == nil {
 			tree.AddMetaNode(key, name)
 		} else {
