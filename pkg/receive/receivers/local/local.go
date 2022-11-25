@@ -60,8 +60,17 @@ func (n *localReceiver) Snapshot(ctx receivers.ReceiveContext, path string, uuid
 	if err != nil {
 		return fmt.Errorf("failed to find root mount for %s: %w", n.destPath, err)
 	}
-	rbtree, err := btrfs.BuildRBTree(root)
-	if err != nil {
+	// Retry this a couple times for unknown reason still
+	var rbtree *btrfs.RBRoot
+	var retries int
+	for rbtree == nil || retries <= 3 {
+		rbtree, err = btrfs.BuildRBTree(root)
+		if err != nil {
+			retries++
+			time.Sleep(100 * time.Millisecond)
+		}
+	}
+	if rbtree == nil {
 		return fmt.Errorf("failed to build rbtree for %s: %w", root, err)
 	}
 	var parent *btrfs.RootInfo

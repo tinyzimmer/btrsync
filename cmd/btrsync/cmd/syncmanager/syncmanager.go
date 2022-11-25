@@ -306,7 +306,7 @@ func (sm *SyncManager) pruneLocalMirror(ctx context.Context) error {
 
 func mirroredSnapshotExists(ss []*btrfs.RootInfo, s *btrfs.RootInfo) bool {
 	for _, snap := range ss {
-		if s.UUID == snap.UUID {
+		if s.UUID == snap.UUID || s.ReceivedUUID == snap.UUID {
 			return true
 		}
 	}
