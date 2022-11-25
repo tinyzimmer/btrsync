@@ -66,7 +66,7 @@ func (n *localReceiver) Snapshot(ctx receivers.ReceiveContext, path string, uuid
 	}
 	var parent *btrfs.RootInfo
 	rbtree.PostOrderIterate(func(node *btrfs.RootInfo, lastErr error) error {
-		if node.Deleted {
+		if node.Deleted || isNilUUID(node.ReceivedUUID) {
 			return nil
 		}
 		if ctx.Verbosity() >= 3 {
@@ -92,6 +92,10 @@ func (n *localReceiver) Snapshot(ctx receivers.ReceiveContext, path string, uuid
 		return err
 	}
 	return btrfs.SyncFilesystem(dest)
+}
+
+func isNilUUID(uu uuid.UUID) bool {
+	return uu == uuid.UUID{}
 }
 
 func (n *localReceiver) Mkfile(ctx receivers.ReceiveContext, path string, ino uint64) error {
