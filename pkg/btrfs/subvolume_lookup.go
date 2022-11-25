@@ -56,7 +56,7 @@ func lookupRootItem(path string, rootID uint64) (*BtrfsRootItem, error) {
 			return lastErr
 		}
 		if hdr.Objectid > rootID {
-			return ErrNotFound
+			return ErrStopWalk
 		}
 		if hdr.Objectid == rootID && hdr.Type == uint32(RootItemKey) {
 			rootItem, err := item.RootItem()
@@ -69,7 +69,7 @@ func lookupRootItem(path string, rootID uint64) (*BtrfsRootItem, error) {
 		return nil
 	})
 	if found == nil {
-		err = ErrNotFound
+		err = fmt.Errorf("failed to find root item %s (%d): %w", path, rootID, ErrNotFound)
 	}
 	return found, err
 }

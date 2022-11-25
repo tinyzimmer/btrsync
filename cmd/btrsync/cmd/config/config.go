@@ -18,14 +18,38 @@ package config
 import (
 	"fmt"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"time"
+
+	"github.com/mitchellh/mapstructure"
 )
 
 type Duration time.Duration
 
 func (d Duration) MarshalJSON() ([]byte, error) {
 	return []byte(fmt.Sprintf("%q", time.Duration(d).String())), nil
+}
+
+func DurationHookFunc() mapstructure.DecodeHookFuncType {
+	return func(
+		f reflect.Type,
+		t reflect.Type,
+		data interface{},
+	) (interface{}, error) {
+		// Check that the data is string
+		if f.Kind() != reflect.String {
+			return data, nil
+		}
+
+		// Check that the target type is our custom type
+		if t != reflect.TypeOf(Duration(0)) {
+			return data, nil
+		}
+
+		// Return the parsed value
+		return time.ParseDuration(data.(string))
+	}
 }
 
 // Config is the root configuration object.

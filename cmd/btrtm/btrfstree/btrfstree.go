@@ -1,3 +1,18 @@
+/*
+This file is part of btrsync.
+
+Btrsync is free software: you can redistribute it and/or modify it under the terms of the
+GNU Lesser General Public License as published by the Free Software Foundation, either
+version 3 of the License, or (at your option) any later version.
+
+Btrsync is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+See the GNU Lesser General Public License for more details.
+
+You should have received a copy of the GNU Lesser General Public License along with btrsync.
+If not, see <https://www.gnu.org/licenses/>.
+*/
+
 package btrfstree
 
 import (
@@ -123,8 +138,7 @@ func (b *BtrfsTree) UpdateNode(uid widget.TreeNodeID, isBranch bool, node fyne.C
 			// Handle the browse button
 			if button, ok := item.(*widget.Button); ok && button.Text == "Browse" {
 				button.OnTapped = func() {
-					url := "file://" + snapshotPath
-					logger.Println("Setting file dialog to", url)
+					logger.Println("Setting file dialog to", snapshotPath)
 					window := fyne.CurrentApp().Driver().AllWindows()[0]
 					cb := func(fyne.URIReadCloser, error) {
 						// call back to restore file (open a new dialog for where to save)
@@ -133,12 +147,9 @@ func (b *BtrfsTree) UpdateNode(uid widget.TreeNodeID, isBranch bool, node fyne.C
 					f.Resize(fyne.NewSize(700, 500))
 					f.SetConfirmText("Restore")
 					f.SetFilter(&fileFilter{snapshotPath})
-					uri, err := storage.ParseURI(url)
+					lister, err := storage.ListerForURI(storage.NewFileURI(snapshotPath))
 					if err == nil {
-						lister, err := storage.ListerForURI(uri)
-						if err == nil {
-							f.SetLocation(lister)
-						}
+						f.SetLocation(lister)
 					}
 					f.Show()
 				}
@@ -181,6 +192,5 @@ type fileFilter struct {
 }
 
 func (f *fileFilter) Matches(uri fyne.URI) bool {
-	path := uri.Path()
-	return strings.HasPrefix(path, f.rootPath)
+	return strings.HasPrefix(uri.Path(), f.rootPath)
 }
