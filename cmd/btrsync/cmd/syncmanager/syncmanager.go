@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/tinyzimmer/btrsync/cmd/btrsync/cmd/snaputil"
@@ -267,14 +268,21 @@ func (sm *SyncManager) pruneLocalMirror(ctx context.Context) error {
 	if sm.config.Verbosity >= 2 {
 		sm.config.Logger.Printf("Listing snapshots in tree at %q\n", mirror.Path)
 	}
+
+	mirrorInfo, err := btrfs.SubvolumeSearch(btrfs.SearchWithPath(mirror.Path))
+	if err != nil {
+		return fmt.Errorf("error looking up information on mirror path: %w", err)
+	}
+
 	tree, err := btrfs.BuildRBTree(mirror.Path)
 	if err != nil {
 		return err
 	}
+	tree = tree.FilterFromRoot(mirrorInfo.RootID)
 
 	var expired []string
 	tree.PreOrderIterate(func(info *btrfs.RootInfo, _ error) error {
-		if info.Deleted || info.ParentUUID != sm.rootInfo.UUID {
+		if info.Deleted || info.FullPath == "" || !strings.HasPrefix(info.FullPath, sm.config.SubvolumeIdentifier) {
 			return nil
 		}
 		fullpath := filepath.Join(destination, info.Name)
@@ -306,7 +314,7 @@ func (sm *SyncManager) pruneLocalMirror(ctx context.Context) error {
 
 func mirroredSnapshotExists(ss []*btrfs.RootInfo, s *btrfs.RootInfo) bool {
 	for _, snap := range ss {
-		if s.UUID == snap.UUID {
+		if s.Name == snap.Name {
 			return true
 		}
 	}

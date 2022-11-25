@@ -60,13 +60,25 @@ func (n *localReceiver) Snapshot(ctx receivers.ReceiveContext, path string, uuid
 	if err != nil {
 		return fmt.Errorf("failed to find root mount for %s: %w", n.destPath, err)
 	}
-	rbtree, err := btrfs.BuildRBTree(root)
-	if err != nil {
+	// Retry this a couple times for unknown reason still
+	var rbtree *btrfs.RBRoot
+	var retries int
+	for rbtree == nil && retries <= 3 {
+		if ctx.Verbosity() >= 1 && retries > 0 {
+			ctx.Log().Printf("error while trying to build tree of %q, retrying: %s\n", root, err)
+		}
+		rbtree, err = btrfs.BuildRBTree(root)
+		if err != nil {
+			retries++
+			time.Sleep(100 * time.Millisecond)
+		}
+	}
+	if rbtree == nil {
 		return fmt.Errorf("failed to build rbtree for %s: %w", root, err)
 	}
 	var parent *btrfs.RootInfo
 	rbtree.PostOrderIterate(func(node *btrfs.RootInfo, lastErr error) error {
-		if node.Deleted {
+		if node.Deleted || isNilUUID(node.ReceivedUUID) {
 			return nil
 		}
 		if ctx.Verbosity() >= 3 {
@@ -92,6 +104,10 @@ func (n *localReceiver) Snapshot(ctx receivers.ReceiveContext, path string, uuid
 		return err
 	}
 	return btrfs.SyncFilesystem(dest)
+}
+
+func isNilUUID(uu uuid.UUID) bool {
+	return uu == uuid.UUID{}
 }
 
 func (n *localReceiver) Mkfile(ctx receivers.ReceiveContext, path string, ino uint64) error {

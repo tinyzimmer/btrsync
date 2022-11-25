@@ -25,6 +25,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
+	"github.com/tinyzimmer/btrsync/cmd/btrsync/cmd/config"
 )
 
 func NewConfigCommand() *cobra.Command {
@@ -63,7 +64,7 @@ func initConfig(cmd *cobra.Command, args []string) error {
 	}
 
 	if err := v.ReadInConfig(); err == nil {
-		if err := v.Unmarshal(&conf); err != nil {
+		if err := v.Unmarshal(&conf, viper.DecodeHook(config.DurationHookFunc())); err != nil {
 			return err
 		}
 		if conf.Verbosity >= 1 {

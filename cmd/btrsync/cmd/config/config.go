@@ -18,13 +18,38 @@ package config
 import (
 	"fmt"
 	"path/filepath"
+	"reflect"
+	"strings"
 	"time"
+
+	"github.com/mitchellh/mapstructure"
 )
 
 type Duration time.Duration
 
 func (d Duration) MarshalJSON() ([]byte, error) {
 	return []byte(fmt.Sprintf("%q", time.Duration(d).String())), nil
+}
+
+func DurationHookFunc() mapstructure.DecodeHookFuncType {
+	return func(
+		f reflect.Type,
+		t reflect.Type,
+		data interface{},
+	) (interface{}, error) {
+		// Check that the data is string
+		if f.Kind() != reflect.String {
+			return data, nil
+		}
+
+		// Check that the target type is our custom type
+		if t != reflect.TypeOf(Duration(0)) {
+			return data, nil
+		}
+
+		// Return the parsed value
+		return time.ParseDuration(data.(string))
+	}
 }
 
 // Config is the root configuration object.
@@ -184,6 +209,8 @@ func isUnique(ss []string, s string) bool {
 func (v Volume) Validate() error {
 	if v.GetName() == "" {
 		return fmt.Errorf("volume name or path is required")
+	} else if strings.Contains(v.GetName(), ":") {
+		return fmt.Errorf("volume name cannot contain a colon")
 	}
 	if v.Path == "" {
 		return fmt.Errorf("volume path is required")
@@ -196,6 +223,8 @@ func (c Config) ValidateSubvolume(vol Volume, subvol Subvolume) error {
 	subvolName := subvol.GetName()
 	if subvolName == "" {
 		return fmt.Errorf("subvolume name or path is required")
+	} else if strings.Contains(subvolName, ":") {
+		return fmt.Errorf("subvolume name cannot contain colon: %s", subvolName)
 	}
 	if subvol.Path == "" {
 		return fmt.Errorf("subvolume path is required")

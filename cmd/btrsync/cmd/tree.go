@@ -36,16 +36,24 @@ func NewTreeCommand() *cobra.Command {
 
 func runTree(cmd *cobra.Command, args []string) error {
 	path := args[0]
-	rbtree, err := btrfs.BuildRBTree(path)
-	if err != nil {
-		return err
-	}
 
 	// Find the root device
 	rootMount, err := btrfs.FindRootMount(path)
 	if err != nil {
 		return err
 	}
+
+	// Find the root ID of the subvolume we are descending from
+	subvol, err := btrfs.SubvolumeSearch(btrfs.SearchWithRootMount(rootMount), btrfs.SearchWithPath(path))
+	if err != nil {
+		return err
+	}
+
+	rbtree, err := btrfs.BuildRBTree(path)
+	if err != nil {
+		return err
+	}
+	rbtree = rbtree.FilterFromRoot(subvol.RootID)
 
 	// Start a treeprinter from the root device
 	treeprint.IndentSize = 4
@@ -56,11 +64,14 @@ func runTree(cmd *cobra.Command, args []string) error {
 		if info.RefTree == 0 || info.RootID == btrfs.FSTreeObjectID {
 			return nil
 		}
-		node := tree.FindByMeta(" " + info.RefTree.IntString())
+		key := fmt.Sprintf(" %s", info.RootID.IntString())
+		lookupKey := fmt.Sprintf(" %s", info.RefTree.IntString())
+		name := info.Path
+		node := tree.FindByMeta(lookupKey)
 		if node == nil {
-			tree.AddMetaNode(" "+info.RootID.IntString(), info.Path)
+			tree.AddMetaNode(key, name)
 		} else {
-			node.AddMetaNode(" "+info.RootID.IntString(), info.Path)
+			node.AddMetaNode(key, name)
 		}
 		return nil
 	})

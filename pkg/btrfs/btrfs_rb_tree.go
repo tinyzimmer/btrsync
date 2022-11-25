@@ -267,6 +267,35 @@ func (r *RBRoot) inOrderIterate(node *RBNode, f RBTreeIterFunc, lastErr error) e
 	return lastErr
 }
 
+func (r *RBRoot) FilterFromRoot(rootID ObjectID) *RBRoot {
+	tree := newRBRoot()
+	r.InOrderIterate(func(info *RootInfo, lastErr error) error {
+		if info.RootID == rootID || info.RefTree == rootID {
+			inf := info
+			node := &RBNode{Info: inf}
+			inf.RBNode = node
+			tree.InsertRoot(inf)
+			return nil
+		}
+		parent := tree.LookupRoot(info.RefTree)
+		for parent != nil && parent.RefTree != 0 {
+			parent = tree.LookupRoot(parent.RefTree)
+			if parent == nil {
+				break
+			}
+			if parent.RootID == rootID || parent.RefTree == rootID {
+				inf := info
+				node := &RBNode{Info: inf}
+				inf.RBNode = node
+				tree.InsertRoot(inf)
+				return nil
+			}
+		}
+		return nil
+	})
+	return tree
+}
+
 func (r *RBRoot) resolveFullPaths(rootFd uintptr, topID uint64) error {
 	return r.PreOrderIterate(func(info *RootInfo, lastErr error) error {
 		if lastErr != nil {

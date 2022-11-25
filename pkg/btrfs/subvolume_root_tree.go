@@ -29,6 +29,7 @@ func BuildRBTree(path string) (*RBRoot, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer f.Close()
 	rootID, err := lookupRootIDFromFd(f.Fd())
 	if err != nil {
 		return nil, fmt.Errorf("failed to find root id: %w", err)
@@ -103,5 +104,5 @@ func BuildRBTree(path string) (*RBRoot, error) {
 	if err := tree.resolveFullPaths(f.Fd(), rootID); err != nil {
 		return nil, fmt.Errorf("failed to resolve full paths: %w", err)
 	}
-	return tree, f.Close()
+	return tree, nil
 }
