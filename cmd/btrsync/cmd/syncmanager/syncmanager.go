@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/tinyzimmer/btrsync/cmd/btrsync/cmd/snaputil"
 	"github.com/tinyzimmer/btrsync/pkg/btrfs"
@@ -29,7 +30,13 @@ type Config struct {
 	MirrorPath          string
 }
 
-func (c Config) MirrorURL() (*url.URL, error) {
+func (c *Config) logLevel(level int, format string, args ...interface{}) {
+	if c.Verbosity >= level {
+		c.Logger.Printf(format, args...)
+	}
+}
+
+func (c *Config) MirrorURL() (*url.URL, error) {
 	u, err := url.Parse(c.MirrorPath)
 	if err != nil {
 		return nil, err
@@ -70,9 +77,7 @@ func New(cfg *Config) (*SyncManager, error) {
 	if err != nil {
 		return nil, err
 	}
-	if cfg.Verbosity > 0 {
-		cfg.Logger.Printf("Initiating sync manager for %q with mirror URL: %s\n", cfg.FullSubvolumePath, mirrorURL)
-	}
+	cfg.logLevel(0, "Initiating sync manager for %q with mirror URL: %s\n", cfg.FullSubvolumePath, mirrorURL)
 	info, err := snaputil.ResolveSubvolumeDetails(
 		cfg.Logger,
 		cfg.Verbosity,
@@ -87,9 +92,7 @@ func New(cfg *Config) (*SyncManager, error) {
 }
 
 func (sm *SyncManager) Sync(ctx context.Context) error {
-	if sm.config.Verbosity >= 1 {
-		sm.config.Logger.Println("Ensuring mirror path is ready and accessible")
-	}
+	sm.config.logLevel(1, "Ensuring mirror path is ready and accessible")
 	mirror, err := sm.config.MirrorURL()
 	if err != nil {
 		return err
@@ -113,7 +116,7 @@ func (sm *SyncManager) Sync(ctx context.Context) error {
 }
 
 func (sm *SyncManager) Prune(ctx context.Context) error {
-	sm.config.Logger.Printf("Pruning expired snapshots from mirror: %s\n", sm.config.MirrorPath)
+	sm.config.logLevel(0, "Pruning expired snapshots from mirror: %s\n", sm.config.MirrorPath)
 	return sm.pruneLocalMirror(ctx)
 }
 
@@ -152,13 +155,11 @@ func (sm *SyncManager) syncSnapshotLocal(ctx context.Context, parent, snap *btrf
 		return err
 	}
 	if synced {
-		if sm.config.Verbosity >= 1 {
-			sm.config.Logger.Printf("Snapshot %q already synced to %q\n", snap.Path, destination)
-		}
+		sm.config.logLevel(1, "Snapshot %q already synced to %q\n", snap.Path, destination)
 		return nil
 	} else if found {
-		sm.config.Logger.Printf("Snapshot %q already exists at %q, but is not synced. Will try incremental send.\n", snap.Path, destination)
-		sm.config.Logger.Printf("Searching for command offset to resume from")
+		sm.config.logLevel(0, "Snapshot %q already exists at %q, but is not synced. Will try incremental send.\n", snap.Path, destination)
+		sm.config.logLevel(0, "Searching for command offset to resume from")
 		var parentPath string
 		var destinationParentPath string
 		if parent != nil {
@@ -169,11 +170,11 @@ func (sm *SyncManager) syncSnapshotLocal(ctx context.Context, parent, snap *btrf
 		if err != nil {
 			return fmt.Errorf("error finding path diff offset: %w", err)
 		}
-		sm.config.Logger.Printf("Found stream diff offset at %d", offset)
+		sm.config.logLevel(0, "Found stream diff offset at %d", offset)
 		receiveOpts = append(receiveOpts, receive.FromOffset(offset))
 	}
 
-	sm.config.Logger.Printf("Syncing snapshot %q to %q\n", snap.Path, destination)
+	sm.config.logLevel(0, "Syncing snapshot %q to %q\n", snap.Path, destination)
 
 	pipeOpt, pipe, err := btrfs.SendToPipe()
 	if err != nil {
@@ -239,9 +240,7 @@ func (sm *SyncManager) ensureLocalMirrorPath(ctx context.Context, path string) e
 	if os.IsNotExist(err) {
 		// Check if the destination is on a btrfs filesystem, we'll use a subvolume
 		// if so, otherwise we'll use a directory.
-		if sm.config.Verbosity >= 1 {
-			sm.config.Logger.Printf("Mirror path %q does not exist, creating\n", path)
-		}
+		sm.config.logLevel(1, "Mirror path %q does not exist, creating\n", path)
 		ok, err := btrfs.IsBtrfs(path)
 		if err != nil {
 			return fmt.Errorf("error checking if destination is btrfs: %w", err)
@@ -250,7 +249,7 @@ func (sm *SyncManager) ensureLocalMirrorPath(ctx context.Context, path string) e
 			return fmt.Errorf("local destination %s is not a btrfs filesystem (may be supported in the future)", path)
 		}
 		// Make a subvolume
-		sm.config.Logger.Printf("Creating btrfs subvolume at %q\n", path)
+		sm.config.logLevel(0, "Creating btrfs subvolume at %q\n", path)
 		if err := btrfs.CreateSubvolume(path); err != nil {
 			return fmt.Errorf("error creating subvolume at %q: %w", path, err)
 		}
@@ -265,18 +264,26 @@ func (sm *SyncManager) pruneLocalMirror(ctx context.Context) error {
 		return err
 	}
 	destination := filepath.Join(mirror.Path, sm.config.SubvolumeIdentifier)
-	if sm.config.Verbosity >= 2 {
-		sm.config.Logger.Printf("Listing snapshots in tree at %q\n", mirror.Path)
-	}
+	sm.config.logLevel(2, "Listing snapshots in tree at %q\n", mirror.Path)
 
 	mirrorInfo, err := btrfs.SubvolumeSearch(btrfs.SearchWithPath(mirror.Path))
 	if err != nil {
 		return fmt.Errorf("error looking up information on mirror path: %w", err)
 	}
 
-	tree, err := btrfs.BuildRBTree(mirror.Path)
+	var tree *btrfs.RBRoot
+	var retries int
+	for tree == nil && retries <= 3 {
+		if retries > 0 {
+			sm.config.logLevel(1, "Error while building tree at %q, retrying: %s\n", mirror.Path, err)
+		}
+		tree, err = btrfs.BuildRBTree(mirror.Path)
+		if err != nil {
+			time.Sleep(time.Millisecond * 100)
+		}
+	}
 	if err != nil {
-		return err
+		return fmt.Errorf("error building tree at %q: %w", mirror.Path, err)
 	}
 	tree = tree.FilterFromRoot(mirrorInfo.RootID)
 
@@ -286,24 +293,18 @@ func (sm *SyncManager) pruneLocalMirror(ctx context.Context) error {
 			return nil
 		}
 		fullpath := filepath.Join(destination, info.Name)
-		if sm.config.Verbosity >= 2 {
-			sm.config.Logger.Printf("Checking if mirrored snapshot %q is expired\n", fullpath)
-		}
+		sm.config.logLevel(3, "Checking if mirrored snapshot %q is expired\n", fullpath)
 		if !mirroredSnapshotExists(sm.rootInfo.Snapshots, info) {
-			if sm.config.Verbosity >= 1 {
-				sm.config.Logger.Printf("Marking snapshot %q for expiry\n", fullpath)
-			}
+			sm.config.logLevel(1, "Marking snapshot %q for expiry\n", fullpath)
 			expired = append(expired, fullpath)
 		} else {
-			if sm.config.Verbosity >= 2 {
-				sm.config.Logger.Printf("Mirrored snapshot %q has not expired\n", fullpath)
-			}
+			sm.config.logLevel(3, "Mirrored snapshot %q has not expired\n", fullpath)
 		}
 		return nil
 	})
 
 	for _, path := range expired {
-		sm.config.Logger.Printf("Expiring snapshot %q\n", path)
+		sm.config.logLevel(0, "Expiring mirrored snapshot %q\n", path)
 		if err := btrfs.DeleteSubvolume(path); err != nil {
 			return fmt.Errorf("error deleting subvolume %q: %w", path, err)
 		}

@@ -13,13 +13,14 @@ You should have received a copy of the GNU Lesser General Public License along w
 If not, see <https://www.gnu.org/licenses/>.
 */
 
+// Package receivers exposes the interface for receiving data from a btrfs send stream.
+// Subpackages contain implementations for different types of receivers.
 package receivers
 
 import (
 	"context"
 	"fmt"
 	"io/fs"
-	"log"
 	"path/filepath"
 	"time"
 
@@ -43,7 +44,7 @@ type Receiver interface {
 	Unlink(ctx ReceiveContext, path string) error
 	Rmdir(pctx ReceiveContext, ath string) error
 	Write(ctx ReceiveContext, path string, offset uint64, data []byte) error
-	EncodedWrite(ctx ReceiveContext, path string, op *btrfs.EncodedWriteOp, forceDecompress bool) error
+	EncodedWrite(ctx ReceiveContext, path string, op *btrfs.EncodedWriteOp) error
 	Clone(ctx ReceiveContext, path string, offset uint64, len uint64, cloneUUID uuid.UUID, cloneCtransid uint64, clonePath string, cloneOffset uint64) error
 	SetXattr(ctx ReceiveContext, path string, name string, data []byte) error
 	RemoveXattr(ctx ReceiveContext, path string, name string) error
@@ -64,8 +65,7 @@ type ReceiveContext interface {
 
 	CurrentSubvolume() *ReceivingSubvolume
 	ResolvePath(path string) string
-	Log() *log.Logger
-	Verbosity() int
+	LogVerbose(level int, format string, args ...interface{})
 }
 
 type ReceivingSubvolume struct {

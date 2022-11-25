@@ -13,13 +13,6 @@ You should have received a copy of the GNU Lesser General Public License along w
 If not, see <https://www.gnu.org/licenses/>.
 */
 
-// Btrsync is a tool for synchronizing btrfs snapshots locally and over a network.
-package main
-
-import "github.com/tinyzimmer/btrsync/cmd/btrsync/cmd"
-
-var version string
-
-func main() {
-	cmd.Execute(version)
-}
+// Package ssh provides a receiver that receives snapshots over an ssh connection.
+// This receiver has not yet been implemented
+package nop

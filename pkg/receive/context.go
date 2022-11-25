@@ -47,10 +47,8 @@ func (r *receiveCtx) ResolvePath(path string) string {
 	return r.currentSubvolInfo.ResolvePath(path)
 }
 
-func (r *receiveCtx) Log() *log.Logger {
-	return r.log
-}
-
-func (r *receiveCtx) Verbosity() int {
-	return r.verbosity
+func (r *receiveCtx) LogVerbose(level int, format string, args ...interface{}) {
+	if r.verbosity >= level {
+		r.log.Printf(format, args...)
+	}
 }

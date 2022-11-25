@@ -101,7 +101,7 @@ func BuildRBTree(path string) (*RBRoot, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to walk root tree: %w", err)
 	}
-	if err := tree.resolveFullPaths(f.Fd(), rootID); err != nil {
+	if err := tree.resolveFullPaths(path, rootID); err != nil {
 		return nil, fmt.Errorf("failed to resolve full paths: %w", err)
 	}
 	return tree, nil

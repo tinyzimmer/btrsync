@@ -13,6 +13,7 @@ You should have received a copy of the GNU Lesser General Public License along w
 If not, see <https://www.gnu.org/licenses/>.
 */
 
+// Btrfstree is a widget that displays a tree of btrfs subvolumes and snapshots.
 package btrfstree
 
 import (

@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/tinyzimmer/btrsync/pkg/btrfs"
 )
@@ -36,25 +37,26 @@ func ResolveSubvolumeDetails(logger *log.Logger, verbosity int, subvolumePath, s
 		return nil, err
 	}
 	// Lookup informatin and all snapshots associated with the volume
-	info, err := btrfs.SubvolumeSearch(
-		btrfs.SearchWithRootMount(mount),
-		btrfs.SearchWithSnapshots(),
-		btrfs.SearchWithPath(subvolumePath),
-	)
+	var info *btrfs.RootInfo
+	var retries int
+	for info == nil && retries <= 3 {
+		if retries > 0 && verbosity >= 1 {
+			logger.Printf("Retrying subvolume lookup after error: %v", err)
+		}
+		info, err = btrfs.SubvolumeSearch(
+			btrfs.SearchWithRootMount(mount),
+			btrfs.SearchWithSnapshots(),
+			btrfs.SearchWithPath(subvolumePath),
+		)
+		if err != nil {
+			time.Sleep(time.Millisecond * 100)
+		}
+	}
 	if err != nil {
 		return nil, err
 	}
-	// // Build a tree to resolve full paths of snapshots
-	// tree, err := btrfs.BuildRBTree(mount)
-	// if err != nil {
-	// 	return nil, nil, err
-	// }
 	managedSnaps := make([]*btrfs.RootInfo, 0)
 	for _, snap := range info.Snapshots {
-		// snapInfo := tree.LookupRoot(snap.RootID)
-		// if snapInfo == nil {
-		// 	return nil, nil, fmt.Errorf("failed to resolve snapshot in root tree: %s", snap.Path)
-		// }
 		if snap.Deleted {
 			continue
 		}

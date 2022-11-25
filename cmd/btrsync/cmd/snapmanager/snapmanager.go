@@ -41,6 +41,12 @@ type Config struct {
 	Verbosity                 int
 }
 
+func (c *Config) logLevel(level int, format string, args ...interface{}) {
+	if c.Verbosity >= level {
+		c.Logger.Printf(format, args...)
+	}
+}
+
 // SnapManager is a manager for snapshots of a given subvolume.
 type SnapManager struct {
 	config   *Config
@@ -74,13 +80,9 @@ func (sm *SnapManager) EnsureMostRecentSnapshot() error {
 		return err
 	}
 	if mostRecent != nil {
-		if sm.config.Verbosity >= 2 {
-			sm.config.Logger.Printf("Most recent snapshot found at %q: %s\n", mostRecent.FullPath, mostRecent.CreationTime)
-		}
+		sm.config.logLevel(2, "Most recent snapshot found at %q: %s\n", mostRecent.FullPath, mostRecent.CreationTime)
 		if time.Since(mostRecent.CreationTime) < sm.config.SnapshotInterval {
-			if sm.config.Verbosity >= 2 {
-				sm.config.Logger.Printf("Most recent snapshot is within interval, skipping\n")
-			}
+			sm.config.logLevel(2, "Most recent snapshot is within interval, skipping\n")
 			return nil
 		}
 	}
@@ -88,7 +90,7 @@ func (sm *SnapManager) EnsureMostRecentSnapshot() error {
 		sm.config.SnapshotDirectory,
 		fmt.Sprintf("%s.%s", sm.config.SnapshotName, time.Now().Format(sm.config.TimeFormat)),
 	)
-	sm.config.Logger.Printf("Creating read-only snapshot %q from %q\n", snapshotPath, sm.config.FullSubvolumePath)
+	sm.config.logLevel(0, "Creating read-only snapshot %q from %q\n", snapshotPath, sm.config.FullSubvolumePath)
 	if err := btrfs.CreateSnapshot(
 		sm.config.FullSubvolumePath,
 		btrfs.WithSnapshotPath(snapshotPath),
@@ -96,9 +98,7 @@ func (sm *SnapManager) EnsureMostRecentSnapshot() error {
 	); err != nil {
 		return err
 	}
-	if sm.config.Verbosity >= 2 {
-		sm.config.Logger.Printf("Snapshot created successfully, syncing filesystem to disk\n")
-	}
+	sm.config.logLevel(2, "Snapshot created successfully, syncing filesystem to disk\n")
 	return btrfs.SyncFilesystem(snapshotPath)
 }
 
@@ -120,18 +120,14 @@ func (sm *SnapManager) PruneSnapshots() error {
 		return nil
 	}
 	// Delete snapshots older than the retention period
-	if sm.config.Verbosity >= 1 {
-		sm.config.Logger.Printf("Pruning snapshots older than %s\n", sm.config.SnapshotRetention)
-	}
+	sm.config.logLevel(1, "Pruning snapshots older than %s\n", sm.config.SnapshotRetention)
 
 	remaining := make([]*btrfs.RootInfo, 0)
 	for _, snap := range sm.rootInfo.Snapshots {
 		fullPath := filepath.Join(sm.config.SnapshotDirectory, snap.Name)
-		if sm.config.Verbosity >= 3 {
-			sm.config.Logger.Printf("Considering snapshot %q created at %s for max retention deletion\n", fullPath, snap.CreationTime)
-		}
+		sm.config.logLevel(3, "Considering snapshot %q created at %s for max retention deletion\n", fullPath, snap.CreationTime)
 		if time.Since(snap.CreationTime) > sm.config.SnapshotRetention {
-			sm.config.Logger.Printf("Deleting snapshot %q\n", fullPath)
+			sm.config.logLevel(0, "Deleting snapshot %q\n", fullPath)
 			if err := btrfs.DeleteSubvolume(fullPath); err != nil {
 				return err
 			}
@@ -145,36 +141,38 @@ func (sm *SnapManager) PruneSnapshots() error {
 	if sm.config.SnapshotRetentionInterval == 0 {
 		return nil
 	}
-	if sm.config.Verbosity >= 1 {
-		sm.config.Logger.Printf("Pruning snapshots within retention period %s according to interval %s\n", sm.config.SnapshotRetention, sm.config.SnapshotRetentionInterval)
-	}
+
+	sm.config.logLevel(1, "Pruning snapshots within retention period %s according to interval %s\n", sm.config.SnapshotRetention, sm.config.SnapshotRetentionInterval)
 	snapshots := make([]*btrfs.RootInfo, 0)
 	for _, snap := range sm.rootInfo.Snapshots {
-		if sm.config.Verbosity >= 3 {
-			sm.config.Logger.Printf("Considering snapshot %q created at %s for minimum retention deletion\n", snap.Path, snap.CreationTime)
-		}
+		sm.config.logLevel(3, "Considering snapshot %q created at %s for minimum retention deletion\n", snap.Path, snap.CreationTime)
 		if time.Since(snap.CreationTime) < sm.config.SnapshotRetention {
 			if time.Since(snap.CreationTime) > sm.config.SnapshotMinimumRetention {
-				if sm.config.Verbosity >= 3 {
-					sm.config.Logger.Printf("Snapshot %q is within the maximum and minimum retention periods\n", snap.Path)
-				}
+				sm.config.logLevel(3, "Snapshot %q is within the maximum and minimum retention periods\n", snap.Path)
 				snapshots = append(snapshots, snap)
 			}
 		}
 	}
 	if len(snapshots) == 0 {
-		if sm.config.Verbosity >= 1 {
-			sm.config.Logger.Printf("No snapshots to prune\n")
-		}
+		sm.config.logLevel(1, "No long-term snapshots to prune\n")
+		return nil
 	}
-	snaputil.SortSnapshots(snapshots, snaputil.SortAscending)
-	for i, snap := range snapshots {
-		fullPath := filepath.Join(sm.config.SnapshotDirectory, snap.Name)
-		if sm.config.Verbosity >= 3 {
-			sm.config.Logger.Printf("Considering snapshot %q created at %s for interval retention deletion\n", fullPath, snap.CreationTime)
+
+	snapshotChunks := toTimedChunks(snapshots, sm.config.SnapshotRetentionInterval)
+
+	// if len(snapshotChunks) <= 1 {
+	// 	sm.config.logLevel(1, "No long-term snapshots to prune\n")
+	// 	return nil
+	// }
+
+	for _, chunk := range snapshotChunks {
+		if len(chunk) <= 1 {
+			continue
 		}
-		if i%int(sm.config.SnapshotRetention/sm.config.SnapshotRetentionInterval) == 0 {
-			sm.config.Logger.Printf("Deleting snapshot %q\n", fullPath)
+		for _, toDel := range chunk[1:] { // The latest snapshots in the chunk
+			snap := toDel
+			fullPath := filepath.Join(sm.config.SnapshotDirectory, snap.Name)
+			sm.config.logLevel(0, "Deleting snapshot %q\n", fullPath)
 			if err := btrfs.DeleteSubvolume(fullPath); err != nil {
 				return err
 			}
@@ -190,7 +188,7 @@ func (sm *SnapManager) ensureSnapshotSubvol() error {
 		if !os.IsNotExist(err) {
 			return err
 		}
-		sm.config.Logger.Printf("Creating snapshot subvolume %s\n", snapDir)
+		sm.config.logLevel(0, "Creating snapshot subvolume %s\n", snapDir)
 		if err := btrfs.CreateSubvolume(snapDir); err != nil {
 			return err
 		}
@@ -199,8 +197,29 @@ func (sm *SnapManager) ensureSnapshotSubvol() error {
 	if !isSubvol {
 		return fmt.Errorf("%s is not a btrfs subvolume", snapDir)
 	}
-	if sm.config.Verbosity >= 2 {
-		sm.config.Logger.Printf("Snapshot subvolume %s already exists\n", snapDir)
-	}
+	sm.config.logLevel(2, "Snapshot subvolume %s already exists\n", snapDir)
 	return nil
+}
+
+func toTimedChunks(snapshots []*btrfs.RootInfo, interval time.Duration) [][]*btrfs.RootInfo {
+	if len(snapshots) == 0 {
+		return nil
+	}
+	snaputil.SortSnapshots(snapshots, snaputil.SortAscending)
+	var chunks [][]*btrfs.RootInfo
+	var chunk []*btrfs.RootInfo
+	var lastTime time.Time
+	for _, snap := range snapshots {
+		if lastTime.IsZero() {
+			lastTime = snap.CreationTime
+		}
+		if snap.CreationTime.Sub(lastTime) > interval {
+			chunks = append(chunks, chunk)
+			chunk = make([]*btrfs.RootInfo, 0)
+			lastTime = snap.CreationTime
+		}
+		chunk = append(chunk, snap)
+	}
+	chunks = append(chunks, chunk)
+	return chunks
 }

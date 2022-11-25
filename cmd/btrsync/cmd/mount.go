@@ -52,7 +52,7 @@ func mount(cmd *cobra.Command, args []string) error {
 
 	fs := memfs.New()
 
-	logger.Println("Receiving btrfs stream to in-memory filesystem")
+	logLevel(0, "Receiving btrfs stream to in-memory filesystem")
 	err = receive.ProcessSendStream(
 		snap,
 		receive.HonorEndCommand(),
@@ -66,7 +66,7 @@ func mount(cmd *cobra.Command, args []string) error {
 		logger.Fatal("Error closing send stream: ", err)
 	}
 
-	logger.Println("Mounting in-memory filesystem at", dest)
+	logLevel(0, "Mounting in-memory filesystem at %q", dest)
 	timeout := time.Second
 	server, err := fusefs.Mount(dest, fs, &fusefs.Options{
 		AttrTimeout:  &timeout,
@@ -75,13 +75,13 @@ func mount(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	logger.Println("Serving FUSE filesystem")
+	logLevel(0, "Serving FUSE filesystem")
 	go server.Wait()
 	ch := make(chan os.Signal, 1)
 
 	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
 	<-ch
 
-	logger.Println("Unmounting FUSE filesystem")
+	logLevel(0, "Unmounting FUSE filesystem")
 	return server.Unmount()
 }

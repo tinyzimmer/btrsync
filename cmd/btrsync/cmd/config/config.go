@@ -16,6 +16,7 @@ If not, see <https://www.gnu.org/licenses/>.
 package config
 
 import (
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"reflect"
@@ -25,10 +26,161 @@ import (
 	"github.com/mitchellh/mapstructure"
 )
 
+// Config is the root configuration object.
+type Config struct {
+	// Verbosity is the verbosity level.
+	Verbosity int `mapstructure:"verbosity" toml:"verbosity,omitempty"`
+	// SnapshotsDir is the directory where snapshots are stored. Defaults to "btrsync_snapshots"
+	// on the root of each volume.
+	SnapshotsDir string `mapstructure:"snapshots_dir" toml:"snapshots_dir,omitempty"`
+	// SnapshotInterval is the global interval between snapshots.
+	SnapshotInterval Duration `mapstructure:"snapshot_interval" toml:"snapshot_interval,omitempty"`
+	// SnapshotMinimumRetention is the global minimum retention time for snapshots.
+	SnapshotMinimumRetention Duration `mapstructure:"snapshot_min_retention" toml:"snapshot_min_retention,omitempty"`
+	// SnapshotRetention is the global retention time for snapshots.
+	SnapshotRetention Duration `mapstructure:"snapshot_retention" toml:"snapshot_retention,omitempty"`
+	// SnapshotRetentionInterval is the global interval for which snapshots will be retained in
+	// the snapshot_retention.
+	SnapshotRetentionInterval Duration `mapstructure:"snapshot_retention_interval" toml:"snapshot_retention_interval,omitempty"`
+	// TimeFormat is the global time format for snapshots.
+	TimeFormat string `mapstructure:"time_format" toml:"time_format,omitempty"`
+	// Volumes is a list of volumes to sync.
+	Volumes []Volume `mapstructure:"volumes" toml:"volumes,omitempty"`
+	// Mirrors is a list of mirrors to sync snapshots to.
+	Mirrors []Mirror `mapstructure:"mirrors" toml:"mirrors,omitempty"`
+	// Daemon configuration
+	Daemon DaemonConfig `mapstructure:"daemon" toml:"daemon,omitempty"`
+}
+
+// Volume is the global configuration for a btrfs volume.
+type Volume struct {
+	// Name is a unique identifier for this volume. Defaults to the path.
+	Name string `mapstructure:"name" toml:"name,omitempty"`
+	// Path is the mount path of the btrfs volume.
+	Path string `mapstructure:"path" toml:"path,omitempty"`
+	// SnapshotsDir is the directory where snapshots are stored for this volume. If left
+	// unset the global value is used.
+	SnapshotsDir string `mapstructure:"snapshots_dir" toml:"snapshots_dir,omitempty"`
+	// SnapshotInterval is the interval between snapshots for this volume. If left unset
+	// the global value is used.
+	SnapshotInterval time.Duration `mapstructure:"snapshot_interval" toml:"snapshot_interval,omitempty"`
+	// SnapshotMinimumRetention is the minimum retention time for snapshots for this volume.
+	// If left unset the global value is used.
+	SnapshotMinimumRetention time.Duration `mapstructure:"snapshot_min_retention" toml:"snapshot_min_retention,omitempty"`
+	// SnapshotRetention is the retention time for snapshots for this volume. If left unset
+	// the global value is used.
+	SnapshotRetention time.Duration `mapstructure:"snapshot_retention" toml:"snapshot_retention,omitempty"`
+	// SnapshotRetentionInterval is the interval for which snapshots will be retained in
+	// the snapshot_retention. If left unset the global value is used.
+	SnapshotRetentionInterval time.Duration `mapstructure:"snapshot_retention_interval" toml:"snapshot_retention_interval,omitempty"`
+	// TimeFormat is the time format for snapshots for this volume. If left unset the global
+	// value is used.
+	TimeFormat string `mapstructure:"time_format" toml:"time_format,omitempty"`
+	// Subvolumes is a list of subvolumes to manage.
+	Subvolumes []Subvolume `mapstructure:"subvolumes" toml:"subvolumes,omitempty"`
+	// Mirrors is a list of mirror names to sync snapshots to.
+	Mirrors []string `mapstructure:"mirrors" toml:"mirrors,omitempty"`
+	// Disabled is a flag to disable managing this volume temporarily.
+	Disabled bool `mapstructure:"disabled" toml:"disabled,omitempty"`
+}
+
+// Subvolume is the configuration for a btrfs subvolume.
+type Subvolume struct {
+	// Name is a unique identifier for this subvolume. Defaults to the path.
+	Name string `mapstructure:"name" toml:"name,omitempty"`
+	// Path is the path of the btrfs subvolume, relative to the volume mount.
+	Path string `mapstructure:"path" toml:"path,omitempty"`
+	// SnapshotsDir is the directory where snapshots are stored for this subvolume. If left
+	// unset either the volume or global value is used respectively.
+	SnapshotsDir string `mapstructure:"snapshots_dir" toml:"snapshots_dir,omitempty"`
+	// SnapshotName is the name prefix to give snapshots of this subvolume. Defaults to the
+	// subvolume name.
+	SnapshotName string `mapstructure:"snapshot_name" toml:"snapshot_name,omitempty"`
+	// SnapshotInterval is the interval between snapshots for this subvolume. If left unset
+	// either the volume or global value is used respectively.
+	SnapshotInterval time.Duration `mapstructure:"snapshot_interval" toml:"snapshot_interval,omitempty"`
+	// SnapshotMinimumRetention is the minimum retention time for snapshots for this subvolume.
+	// If left unset either the volume or global value is used respectively.
+	SnapshotMinimumRetention time.Duration `mapstructure:"snapshot_min_retention" toml:"snapshot_min_retention,omitempty"`
+	// SnapshotRetention is the retention time for snapshots for this subvolume. If left unset
+	// either the volume or global value is used respectively.
+	SnapshotRetention time.Duration `mapstructure:"snapshot_retention" toml:"snapshot_retention,omitempty"`
+	// SnapshotRetentionInterval is the interval for which snapshots will be retained in
+	// the snapshot_retention. If left unset either the volume or global value is used respectively.
+	SnapshotRetentionInterval time.Duration `mapstructure:"snapshot_retention_interval" toml:"snapshot_retention_interval,omitempty"`
+	// TimeFormat is the time format for snapshots for this subvolume. If left unset either
+	// the volume or global value is used respectively.
+	TimeFormat string `mapstructure:"time_format" toml:"time_format,omitempty"`
+	// Mirrors is a list of mirror names to sync snapshots to. Automatically includes the
+	// volume mirrors.
+	Mirrors []string `mapstructure:"mirrors" toml:"mirrors,omitempty"`
+	// ExcludeMirrors is a list of mirror names to exclude from syncing snapshots to.
+	ExcludeMirrors []string `mapstructure:"exclude_mirrors" toml:"exclude_mirrors,omitempty"`
+	// Disabled is a flag to disable managing this subvolume temporarily.
+	Disabled bool `mapstructure:"disabled" toml:"disabled,omitempty"`
+}
+
+// Mirror is the configuration for a btrfs snapshot mirror.
+type Mirror struct {
+	// Name is a unique identifier for this mirror.
+	Name string `mapstructure:"name" toml:"name,omitempty"`
+	// Path is the location of the mirror. Each subvolume mirrored to this mirror will be
+	// stored in a subdirectory of this path.
+	Path string `mapstructure:"path" toml:"path,omitempty"`
+	// Disabled is a flag to disable managing this mirror temporarily.
+	Disabled bool `mapstructure:"disabled" toml:"disabled,omitempty"`
+}
+
+// DaemonConfig is the configuration for the daemon process
+type DaemonConfig struct {
+	ScanInterval Duration `mapstructure:"scan_interval" toml:"scan_interval,omitempty"`
+}
+
 type Duration time.Duration
+
+func (d *Duration) Type() string {
+	return "duration"
+}
+
+func (d Duration) String() string { return time.Duration(d).String() }
+
+func (d *Duration) Set(s string) error {
+	dur, err := time.ParseDuration(s)
+	if err != nil {
+		return err
+	}
+	*d = Duration(dur)
+	return nil
+}
 
 func (d Duration) MarshalJSON() ([]byte, error) {
 	return []byte(fmt.Sprintf("%q", time.Duration(d).String())), nil
+}
+
+func (d *Duration) UnmarshalJSON(b []byte) error {
+	var s string
+	if err := json.Unmarshal(b, &s); err != nil {
+		return err
+	}
+	dur, err := time.ParseDuration(s)
+	if err != nil {
+		return err
+	}
+	*d = Duration(dur)
+	return nil
+}
+
+func (d Duration) MarshalText() ([]byte, error) {
+	return []byte(time.Duration(d).String()), nil
+}
+
+func (d *Duration) UnmarshalText(b []byte) error {
+	dur, err := time.ParseDuration(string(b))
+	if err != nil {
+		return err
+	}
+	*d = Duration(dur)
+	return nil
 }
 
 func DurationHookFunc() mapstructure.DecodeHookFuncType {
@@ -52,124 +204,28 @@ func DurationHookFunc() mapstructure.DecodeHookFuncType {
 	}
 }
 
-// Config is the root configuration object.
-type Config struct {
-	// Verbosity is the verbosity level.
-	Verbosity int `mapstructure:"verbosity"`
-	// SnapshotsDir is the directory where snapshots are stored. Defaults to "btrsync_snapshots"
-	// on the root of each volume.
-	SnapshotsDir string `mapstructure:"snapshots_dir"`
-	// SnapshotInterval is the global interval between snapshots.
-	SnapshotInterval Duration `mapstructure:"snapshot_interval"`
-	// SnapshotMinimumRetention is the global minimum retention time for snapshots.
-	SnapshotMinimumRetention Duration `mapstructure:"snapshot_min_retention"`
-	// SnapshotRetention is the global retention time for snapshots.
-	SnapshotRetention Duration `mapstructure:"snapshot_retention"`
-	// SnapshotRetentionInterval is the global interval between snapshot retention runs.
-	SnapshotRetentionInterval Duration `mapstructure:"snapshot_retention_interval"`
-	// TimeFormat is the global time format for snapshots.
-	TimeFormat string `mapstructure:"time_format"`
-	// Volumes is a list of volumes to sync.
-	Volumes []Volume `mapstructure:"volumes"`
-	// Mirrors is a list of mirrors to sync snapshots to.
-	Mirrors []Mirror `mapstructure:"mirrors"`
-}
-
-// Volume is the global configuration for a btrfs volume.
-type Volume struct {
-	// Name is a unique identifier for this volume. Defaults to the path.
-	Name string `mapstructure:"name"`
-	// Path is the mount path of the btrfs volume.
-	Path string `mapstructure:"path"`
-	// SnapshotsDir is the directory where snapshots are stored for this volume. If left
-	// unset the global value is used.
-	SnapshotsDir string `mapstructure:"snapshots_dir"`
-	// SnapshotInterval is the interval between snapshots for this volume. If left unset
-	// the global value is used.
-	SnapshotInterval time.Duration `mapstructure:"snapshot_interval"`
-	// SnapshotMinimumRetention is the minimum retention time for snapshots for this volume.
-	// If left unset the global value is used.
-	SnapshotMinimumRetention time.Duration `mapstructure:"snapshot_min_retention"`
-	// SnapshotRetention is the retention time for snapshots for this volume. If left unset
-	// the global value is used.
-	SnapshotRetention time.Duration `mapstructure:"snapshot_retention"`
-	// SnapshotRetentionInterval is the interval between snapshot retention runs for this
-	// volume. If left unset the global value is used.
-	SnapshotRetentionInterval time.Duration `mapstructure:"snapshot_retention_interval"`
-	// TimeFormat is the time format for snapshots for this volume. If left unset the global
-	// value is used.
-	TimeFormat string `mapstructure:"time_format"`
-	// Subvolumes is a list of subvolumes to manage.
-	Subvolumes []Subvolume `mapstructure:"subvolumes"`
-	// Mirrors is a list of mirror names to sync snapshots to.
-	Mirrors []string `mapstructure:"mirrors"`
-	// Disabled is a flag to disable managing this volume temporarily.
-	Disabled bool `mapstructure:"disabled"`
-}
-
-// Subvolume is the configuration for a btrfs subvolume.
-type Subvolume struct {
-	// Name is a unique identifier for this subvolume. Defaults to the path.
-	Name string `mapstructure:"name"`
-	// Path is the path of the btrfs subvolume, relative to the volume mount.
-	Path string `mapstructure:"path"`
-	// SnapshotsDir is the directory where snapshots are stored for this subvolume. If left
-	// unset either the volume or global value is used respectively.
-	SnapshotsDir string `mapstructure:"snapshots_dir"`
-	// SnapshotName is the name prefix to give snapshots of this subvolume. Defaults to the
-	// subvolume name.
-	SnapshotName string `mapstructure:"snapshot_name"`
-	// SnapshotInterval is the interval between snapshots for this subvolume. If left unset
-	// either the volume or global value is used respectively.
-	SnapshotInterval time.Duration `mapstructure:"snapshot_interval"`
-	// SnapshotMinimumRetention is the minimum retention time for snapshots for this subvolume.
-	// If left unset either the volume or global value is used respectively.
-	SnapshotMinimumRetention time.Duration `mapstructure:"snapshot_min_retention"`
-	// SnapshotRetention is the retention time for snapshots for this subvolume. If left unset
-	// either the volume or global value is used respectively.
-	SnapshotRetention time.Duration `mapstructure:"snapshot_retention"`
-	// SnapshotRetentionInterval is the interval between snapshot retention runs for this
-	// subvolume. If left unset either the volume or global value is used respectively.
-	SnapshotRetentionInterval time.Duration `mapstructure:"snapshot_retention_interval"`
-	// TimeFormat is the time format for snapshots for this subvolume. If left unset either
-	// the volume or global value is used respectively.
-	TimeFormat string `mapstructure:"time_format"`
-	// Mirrors is a list of mirror names to sync snapshots to. Automatically includes the
-	// volume mirrors.
-	Mirrors []string `mapstructure:"mirrors"`
-	// ExcludeMirrors is a list of mirror names to exclude from syncing snapshots to.
-	ExcludeMirrors []string `mapstructure:"exclude_mirrors"`
-	// Disabled is a flag to disable managing this subvolume temporarily.
-	Disabled bool `mapstructure:"disabled"`
-}
-
-// Mirror is the configuration for a btrfs snapshot mirror.
-type Mirror struct {
-	// Name is a unique identifier for this mirror.
-	Name string `mapstructure:"name"`
-	// Path is the location of the mirror. Each subvolume mirrored to this mirror will be
-	// stored in a subdirectory of this path.
-	Path string `mapstructure:"path"`
-	// Disabled is a flag to disable managing this mirror temporarily.
-	Disabled bool `mapstructure:"disabled"`
-}
-
 const (
+	DefaultSnapshotsDir              = "btrsync_snapshots"
 	DefaultTimeFormat                = "2006-01-02_15-04-05"
 	DefaultSnapshotInterval          = Duration(1 * time.Hour)      // Hourly snapshots
 	DefaultSnapshotMinimumRetention  = Duration(1 * 24 * time.Hour) // Keep all snapshots at least a day
 	DefaultSnapshotRetention         = Duration(7 * 24 * time.Hour) // Retain snapshots for 7 days
 	DefaultSnapshotRetentionInterval = Duration(1 * 24 * time.Hour) // One snapshot retained per day
+	DefaultDaemonScanInterval        = Duration(1 * time.Minute)    // Scan for operations every minute in daemon mode
 )
 
 func NewDefaultConfig() Config {
 	return Config{
 		Verbosity:                 0,
+		SnapshotsDir:              DefaultSnapshotsDir,
 		SnapshotInterval:          DefaultSnapshotInterval,
 		SnapshotMinimumRetention:  DefaultSnapshotMinimumRetention,
 		SnapshotRetention:         DefaultSnapshotRetention,
 		SnapshotRetentionInterval: DefaultSnapshotRetentionInterval,
 		TimeFormat:                DefaultTimeFormat,
+		Daemon: DaemonConfig{
+			ScanInterval: DefaultDaemonScanInterval,
+		},
 	}
 }
 
@@ -195,6 +251,24 @@ func (c Config) Validate() error {
 		}
 	}
 	return nil
+}
+
+func (c Config) VolumeNameInUse(name string) bool {
+	for _, volume := range c.Volumes {
+		if volume.GetName() == name {
+			return true
+		}
+	}
+	return false
+}
+
+func (v Volume) SubvolumeNameInUse(name string) bool {
+	for _, subvolume := range v.Subvolumes {
+		if subvolume.GetName() == name {
+			return true
+		}
+	}
+	return false
 }
 
 func isUnique(ss []string, s string) bool {
@@ -295,7 +369,7 @@ func (c Config) ResolveSnapshotPath(vol, subvol string) (path string) {
 	} else if c.SnapshotsDir != "" {
 		path = filepath.Join(v.Path, c.SnapshotsDir)
 	} else {
-		path = filepath.Join(v.Path, "btrsync_snapshots")
+		path = filepath.Join(v.Path, DefaultSnapshotsDir)
 	}
 	return
 }
@@ -445,11 +519,11 @@ func (s Subvolume) GetName() string {
 	return filepath.Base(s.Path)
 }
 
-func (s Subvolume) GetSnapshotName() string {
+func (s Subvolume) GetSnapshotName(volumeName string) string {
 	if s.SnapshotName != "" {
 		return s.SnapshotName
 	}
-	return s.GetName()
+	return fmt.Sprintf("%s.%s", volumeName, s.GetName())
 }
 
 func (s Subvolume) FilterExcludedMirrors(mm []Mirror) []Mirror {

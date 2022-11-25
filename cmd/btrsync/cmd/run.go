@@ -18,6 +18,7 @@ package cmd
 import (
 	"context"
 	"path/filepath"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -25,24 +26,38 @@ import (
 	"github.com/tinyzimmer/btrsync/cmd/btrsync/cmd/syncmanager"
 )
 
+var (
+	runDaemon bool
+)
+
 func NewRunCommand() *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "run",
 		Short: "Run a sync operation based on the configuration",
-		RunE:  run,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if runDaemon {
+				return daemon(cmd, args)
+			}
+			return run(cmd, args)
+		},
 	}
+
+	cmd.Flags().BoolVarP(&runDaemon, "daemon", "d", false, "Run the daemon process")
+	cmd.Flags().Var(&conf.Daemon.ScanInterval, "scan-interval", "The interval to scan for work to do when running as a daemon")
+	v.BindPFlag("daemon.scan_interval", cmd.Flags().Lookup("scan-interval"))
+	return cmd
 }
 
 func run(cmd *cobra.Command, args []string) error {
-	logger.Println("Running local snapshot operations...")
+	logLevel(0, "Running local snapshot operations...")
 	if err := handleSnapshots(); err != nil {
 		return err
 	}
-	logger.Println("Running sync operations...")
+	logLevel(0, "Running sync operations...")
 	if err := handleSync(); err != nil {
 		return err
 	}
-	logger.Println("Done.")
+	logLevel(0, "Done.")
 	return nil
 }
 
@@ -50,25 +65,21 @@ func handleSnapshots() error {
 	for _, vol := range conf.Volumes {
 		volumeName := vol.GetName()
 		if vol.Disabled {
-			if conf.Verbosity >= 1 {
-				logger.Printf("Skipping disabled volume %s: %s", volumeName, vol.Path)
-			}
+			logLevel(1, "Skipping disabled volume %s: %s", volumeName, vol.Path)
 			continue
 		}
 		for _, subvol := range vol.Subvolumes {
 			subvolName := subvol.GetName()
 			if subvol.Disabled {
-				if conf.Verbosity >= 1 {
-					logger.Printf("Skipping disabled subvolume %s: %s", subvolName, subvol.Path)
-				}
+				logLevel(1, "Skipping disabled subvolume %s: %s", subvolName, subvol.Path)
 				continue
 			}
-			logger.Printf("Ensuring snapshots for subvolume %s/%s...", vol.Path, subvol.Path)
+			logLevel(0, "Ensuring snapshots for subvolume %s/%s...", vol.Path, subvol.Path)
 			snapDir := conf.ResolveSnapshotPath(volumeName, subvolName)
 			sourcePath := filepath.Join(vol.Path, subvol.Path)
 			manager, err := snapmanager.New(&snapmanager.Config{
 				FullSubvolumePath:         sourcePath,
-				SnapshotName:              subvol.GetSnapshotName(),
+				SnapshotName:              subvol.GetSnapshotName(volumeName),
 				SnapshotDirectory:         snapDir,
 				SnapshotInterval:          conf.ResolveSnapshotInterval(volumeName, subvolName),
 				SnapshotMinimumRetention:  conf.ResolveSnapshotMinimumRetention(volumeName, subvolName),
@@ -96,40 +107,32 @@ func handleSync() error {
 	for _, vol := range conf.Volumes {
 		volumeName := vol.GetName()
 		if vol.Disabled {
-			if conf.Verbosity >= 1 {
-				logger.Printf("Skipping disabled volume %s: %s", volumeName, vol.Path)
-			}
+			logLevel(1, "Skipping disabled volume %s: %s", volumeName, vol.Path)
 			continue
 		}
 		for _, subvol := range vol.Subvolumes {
 			subvolName := subvol.GetName()
 			if subvol.Disabled {
-				if conf.Verbosity >= 1 {
-					logger.Printf("Skipping disabled subvolume %s: %s", subvolName, subvol.Path)
-				}
+				logLevel(1, "Skipping disabled subvolume %s: %s", subvolName, subvol.Path)
 				continue
 			}
 			mirrors := conf.ResolveMirrors(volumeName, subvolName)
 			if len(mirrors) == 0 {
-				if conf.Verbosity >= 1 {
-					logger.Printf("Skipping subvolume %s/%s: no mirrors configured", vol.Path, subvol.Path)
-				}
+				logLevel(1, "Skipping subvolume %s/%s: no mirrors configured", vol.Path, subvol.Path)
 				continue
 			}
-			logger.Printf("Running sync for subvolume %s/%s...", vol.Path, subvol.Path)
+			logLevel(0, "Running sync for subvolume %s/%s...", vol.Path, subvol.Path)
 			snapDir := conf.ResolveSnapshotPath(volumeName, subvolName)
 			sourcePath := filepath.Join(vol.Path, subvol.Path)
 			for _, mirror := range mirrors {
 				if mirror.Disabled {
-					if conf.Verbosity >= 1 {
-						logger.Printf("Skipping disabled mirror: %s", mirror.Path)
-					}
+					logLevel(1, "Skipping disabled mirror: %s", mirror.Path)
 					continue
 				}
 				manager, err := syncmanager.New(&syncmanager.Config{
-					SubvolumeIdentifier: subvol.GetName(),
+					SubvolumeIdentifier: subvol.GetSnapshotName(volumeName),
 					FullSubvolumePath:   sourcePath,
-					SnapshotName:        subvol.GetSnapshotName(),
+					SnapshotName:        subvol.GetSnapshotName(volumeName),
 					SnapshotDirectory:   snapDir,
 					Logger:              logger,
 					Verbosity:           conf.Verbosity,
@@ -145,6 +148,21 @@ func handleSync() error {
 					return err
 				}
 			}
+		}
+	}
+	return nil
+}
+
+func daemon(cmd *cobra.Command, args []string) error {
+	logLevel(0, "Starting daemon process with %s scan interval...", conf.Daemon.ScanInterval)
+	if err := run(cmd, args); err != nil {
+		logLevel(0, "Error running sync: %s", err)
+	}
+	t := time.NewTicker(time.Duration(conf.Daemon.ScanInterval))
+	for range t.C {
+		if err := run(cmd, args); err != nil {
+			logLevel(0, "Error running sync: %s", err)
+			logLevel(0, "Will retry on next scan interval")
 		}
 	}
 	return nil

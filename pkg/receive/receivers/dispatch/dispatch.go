@@ -13,6 +13,7 @@ You should have received a copy of the GNU Lesser General Public License along w
 If not, see <https://www.gnu.org/licenses/>.
 */
 
+// Package dispatch provides a receiver that dispatches to multiple receivers.
 package dispatch
 
 import (
@@ -150,10 +151,10 @@ func (n *dispatchReceiver) Write(ctx receivers.ReceiveContext, path string, offs
 	return nil
 }
 
-func (n *dispatchReceiver) EncodedWrite(ctx receivers.ReceiveContext, path string, op *btrfs.EncodedWriteOp, forceDecompress bool) error {
+func (n *dispatchReceiver) EncodedWrite(ctx receivers.ReceiveContext, path string, op *btrfs.EncodedWriteOp) error {
 	for _, r := range n.receivers {
 		o := op
-		if err := r.EncodedWrite(ctx, path, o, forceDecompress); err != nil {
+		if err := r.EncodedWrite(ctx, path, o); err != nil {
 			return err
 		}
 	}

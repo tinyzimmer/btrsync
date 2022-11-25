@@ -15,6 +15,8 @@ If not, see <https://www.gnu.org/licenses/>.
 
 package btrfs
 
+import "time"
+
 const BTRFS_SUPER_MAGIC = 0x9123683E
 
 type BtrfsDirItem struct {
@@ -90,4 +92,8 @@ type BtrfsRootItem struct {
 	Rtime          BtrfsTimespec
 	Global_tree_id uint64
 	Reserved       [7]uint64
+}
+
+func (b BtrfsTimespec) Time() time.Time {
+	return time.Unix(int64(b.Sec), int64(b.Nsec))
 }

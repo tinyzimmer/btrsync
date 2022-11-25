@@ -24,6 +24,11 @@ import (
 	"strings"
 )
 
+var (
+	// ErrRootMountNotFound is returned when a root mount cannot be found for a given path.
+	ErrRootMountNotFound = fmt.Errorf("could not find root mount for path")
+)
+
 // IsBtrfs returns true if the given path is a btrfs mount.
 func IsBtrfs(path string) (bool, error) {
 	path, err := filepath.Abs(path)
@@ -39,37 +44,24 @@ func IsBtrfs(path string) (bool, error) {
 	return true, nil
 }
 
-var (
-	ErrRootMountNotFound = fmt.Errorf("could not find root mount for path")
-)
-
 // FindRootMount returns the root btrfs mount for the given path.
 func FindRootMount(path string) (string, error) {
 	path, err := filepath.Abs(path)
 	if err != nil {
 		return "", err
 	}
-	f, err := os.Open("/proc/mounts")
+	mounts, err := ListBtrfsMounts()
 	if err != nil {
 		return "", err
 	}
-	defer f.Close()
 	var rootMount string
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		fields := strings.Fields(scanner.Text())
-		if len(fields) < 3 {
-			continue
-		}
-		if fields[2] != "btrfs" {
-			continue
-		}
-		if strings.HasPrefix(path, fields[1]) {
+	for _, mount := range mounts {
+		if strings.HasPrefix(path, mount) {
 			// If we find a mount that is a prefix of the path, we need to make sure
 			// it is the longest prefix. If we find a longer prefix, we need to use
 			// that instead.
-			if len(fields[1]) > len(rootMount) {
-				rootMount = fields[1]
+			if len(mount) > len(rootMount) {
+				rootMount = mount
 			}
 		}
 	}
@@ -77,4 +69,25 @@ func FindRootMount(path string) (string, error) {
 		return "", fmt.Errorf("%w %s", ErrRootMountNotFound, path)
 	}
 	return rootMount, nil
+}
+
+// ListBtrfsMounts returns a list of all btrfs mounts on the system.
+func ListBtrfsMounts() ([]string, error) {
+	f, err := os.Open("/proc/mounts")
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	var mounts []string
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		fields := strings.Fields(scanner.Text())
+		if len(fields) < 3 {
+			continue
+		}
+		if fields[2] == "btrfs" {
+			mounts = append(mounts, fields[1])
+		}
+	}
+	return mounts, nil
 }

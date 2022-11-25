@@ -13,6 +13,7 @@ You should have received a copy of the GNU Lesser General Public License along w
 If not, see <https://www.gnu.org/licenses/>.
 */
 
+// Pacakge sendstream implements a scanner for the btrfs send stream format.
 package sendstream
 
 import (

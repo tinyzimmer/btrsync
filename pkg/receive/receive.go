@@ -13,6 +13,7 @@ You should have received a copy of the GNU Lesser General Public License along w
 If not, see <https://www.gnu.org/licenses/>.
 */
 
+// Package receive implements a receiver for btrfs send streams.
 package receive
 
 import (

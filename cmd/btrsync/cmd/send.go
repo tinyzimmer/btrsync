@@ -65,14 +65,14 @@ func send(cmd *cobra.Command, args []string) error {
 	}
 	var dest *os.File
 	if sendfile != "" {
-		logger.Printf("Sending to file %s", sendfile)
+		logLevel(0, "Sending to file %s", sendfile)
 		dest, err = os.Create(sendfile)
 	} else if len(args) == 1 {
 		_, err = unix.IoctlGetWinsize(int(os.Stdout.Fd()), unix.TIOCGWINSZ)
 		if err == nil {
 			err = errors.New("stdout is a terminal, please specify an output file")
 		} else {
-			logger.Printf("Sending stream to stdout")
+			logLevel(0, "Sending stream to stdout")
 			dest = os.Stdout
 			err = nil
 		}

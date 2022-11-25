@@ -13,6 +13,8 @@ You should have received a copy of the GNU Lesser General Public License along w
 If not, see <https://www.gnu.org/licenses/>.
 */
 
+// Package nop implements a receiver that does nothing. This is the default receiver used by the
+// receive package if no other receiver is specified.
 package nop
 
 import (
@@ -83,7 +85,7 @@ func (n *nopReceiver) Write(ctx receivers.ReceiveContext, path string, offset ui
 	return nil
 }
 
-func (n *nopReceiver) EncodedWrite(ctx receivers.ReceiveContext, path string, op *btrfs.EncodedWriteOp, forceDecompress bool) error {
+func (n *nopReceiver) EncodedWrite(ctx receivers.ReceiveContext, path string, op *btrfs.EncodedWriteOp) error {
 	return nil
 }
 

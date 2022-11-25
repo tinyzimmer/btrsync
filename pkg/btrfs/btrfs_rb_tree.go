@@ -18,6 +18,7 @@ package btrfs
 import (
 	"errors"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/google/uuid"
@@ -296,7 +297,12 @@ func (r *RBRoot) FilterFromRoot(rootID ObjectID) *RBRoot {
 	return tree
 }
 
-func (r *RBRoot) resolveFullPaths(rootFd uintptr, topID uint64) error {
+func (r *RBRoot) resolveFullPaths(fromRoot string, topID uint64) error {
+	f, err := os.OpenFile(fromRoot, os.O_RDONLY, os.ModeDir)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
 	return r.PreOrderIterate(func(info *RootInfo, lastErr error) error {
 		if lastErr != nil {
 			return lastErr
@@ -307,7 +313,7 @@ func (r *RBRoot) resolveFullPaths(rootFd uintptr, topID uint64) error {
 		}
 		// Lookup path relative to the parent subvolume
 		var path string
-		path, err := lookupInoPath(rootFd, info)
+		path, err := lookupInoPath(f.Fd(), info)
 		if err != nil {
 			return err
 		}

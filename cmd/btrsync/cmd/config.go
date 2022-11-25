@@ -16,85 +16,223 @@ If not, see <https://www.gnu.org/licenses/>.
 package cmd
 
 import (
+	"bufio"
+	"bytes"
 	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
+	"time"
 
+	"github.com/google/uuid"
+	"github.com/pelletier/go-toml/v2"
 	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
-	"github.com/spf13/viper"
+
 	"github.com/tinyzimmer/btrsync/cmd/btrsync/cmd/config"
+	"github.com/tinyzimmer/btrsync/pkg/btrfs"
+)
+
+var (
+	generateMounts       []string
+	generateIncludeExprs []string
+	generateExcludeExprs []string
 )
 
 func NewConfigCommand() *cobra.Command {
-	cmd := &cobra.Command{
+	root := &cobra.Command{
 		Use:   "config",
-		Short: "Print the configuration",
+		Short: "Work with btrsync configuration files",
+	}
+
+	test := &cobra.Command{
+		Use:   "test",
+		Short: "Test a configuration file",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			out, err := json.MarshalIndent(conf, "", "  ")
-			if err != nil {
-				return err
-			}
-			fmt.Println(string(out))
+			fmt.Fprintf(cmd.OutOrStdout(), "Configuration file is valid: %q\n", v.ConfigFileUsed())
 			return nil
 		},
 	}
-	return cmd
+
+	show := &cobra.Command{
+		Use:   "show",
+		Short: "Print the configuration",
+		RunE:  showConfig,
+	}
+
+	generate := &cobra.Command{
+		Use:     "generate",
+		Short:   "Generate a new configuration file",
+		Aliases: []string{"gen"},
+		RunE:    generateConfig,
+	}
+
+	generate.Flags().StringArrayVarP(&generateMounts, "mount", "m", []string{}, "Mount points to include in the configuration (defaults to all detected btrfs mounts)")
+	generate.Flags().StringArrayVarP(&generateIncludeExprs, "include", "i", []string{},
+		"Include expressions to apply to subvolume paths while generating the configuration (default match all)")
+	generate.Flags().StringArrayVarP(&generateExcludeExprs, "exclude", "e", []string{},
+		"Exclude expressions to apply to subvolume paths while generating the configuration (default exclude none)")
+
+	root.AddCommand(test)
+	root.AddCommand(show)
+	root.AddCommand(generate)
+
+	return root
 }
 
-func initConfig(cmd *cobra.Command, args []string) error {
-	v := viper.New()
+func showConfig(cmd *cobra.Command, args []string) error {
+	out, err := json.MarshalIndent(conf, "", "  ")
+	if err != nil {
+		return err
+	}
+	fmt.Println(string(out))
+	return nil
+}
 
-	v.BindPFlag("snapshots_dir", cmd.PersistentFlags().Lookup("snapshots-dir"))
-	v.BindPFlag("verbosity", cmd.PersistentFlags().Lookup("verbose"))
+func generateConfig(cmd *cobra.Command, args []string) error {
+	var includeExprs, excludeExprs []*regexp.Regexp
 
-	if cfgFile != "" {
-		// Use config file from the flag.
-		v.SetConfigFile(cfgFile)
-	} else {
-		cfgdir, err := os.UserConfigDir()
-		cobra.CheckErr(err)
-		v.AddConfigPath(".")                              // Current directory
-		v.AddConfigPath(filepath.Join(cfgdir, "btrsync")) // User config directory
-		v.AddConfigPath("/etc/btrsync")                   // System config directory
-		v.SetConfigType("toml")
-		v.SetConfigName("btrsync.toml")
+	for _, expr := range generateIncludeExprs {
+		re, err := regexp.Compile(expr)
+		if err != nil {
+			return fmt.Errorf("failed to compile include expression: %s", err)
+		}
+		includeExprs = append(includeExprs, re)
 	}
 
-	if err := v.ReadInConfig(); err == nil {
-		if err := v.Unmarshal(&conf, viper.DecodeHook(config.DurationHookFunc())); err != nil {
-			return err
+	for _, expr := range generateExcludeExprs {
+		re, err := regexp.Compile(expr)
+		if err != nil {
+			return fmt.Errorf("failed to compile exclude expression: %s", err)
 		}
-		if conf.Verbosity >= 1 {
-			logger.Println("Using config file:", v.ConfigFileUsed())
-		}
-	} else {
-		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
+		excludeExprs = append(excludeExprs, re)
+	}
+
+	var err error
+	conf := config.NewDefaultConfig()
+	if len(generateMounts) == 0 {
+		generateMounts, err = btrfs.ListBtrfsMounts()
+		if err != nil {
 			return err
 		}
 	}
-
-	v.SetEnvPrefix(envPrefix)
-	v.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
-	v.AutomaticEnv()
-
-	cmd.PersistentFlags().VisitAll(func(f *pflag.Flag) {
-		if !f.Changed && v.IsSet(f.Name) {
-			fmt.Println("Setting flag", f.Name, "to", v.Get(f.Name))
-			cmd.PersistentFlags().SetAnnotation(f.Name, cobra.BashCompOneRequiredFlag, []string{"false"})
-			cmd.PersistentFlags().Set(f.Name, v.GetString(f.Name))
+	// Populate volumes
+	for _, mount := range generateMounts {
+		var name string
+		if mount == "/" {
+			name = "root"
+		} else {
+			name = filepath.Base(mount)
 		}
-	})
+		if conf.VolumeNameInUse(name) {
+			name = fmt.Sprintf("%s-%d", name, time.Now().Unix())
+		}
+		volume := config.Volume{
+			Name:       name,
+			Path:       mount,
+			Subvolumes: make([]config.Subvolume, 0),
+		}
+		// Populate subvolumes starting with one for the root of the mount
+		tree, err := btrfs.BuildRBTree(mount)
+		if err != nil {
+			return err
+		}
+		rootName := fmt.Sprintf("%s-root", name)
+		subvols := []config.Subvolume{
+			{
+				Name: fmt.Sprintf("%s-root", name),
+			},
+		}
+		// Make sure we are including the root
+		if len(includeExprs) > 0 {
+			for _, expr := range includeExprs {
+				if expr.MatchString(rootName) {
+					break
+				}
+				subvols = nil
+			}
+		}
+		// Make sure we are not excluding the root
+		for _, expr := range excludeExprs {
+			if expr.MatchString(rootName) {
+				subvols = nil
+				break
+			}
+		}
+		// Populate the rest of the subvolumes
+		tree.InOrderIterate(func(info *btrfs.RootInfo, _ error) error {
+			if info.Deleted || info.Path == "" {
+				return nil
+			}
+			if info.ParentUUID == uuid.Nil {
+				var fullpath = info.Path
+				parent := tree.LookupRoot(info.RefTree)
+				for parent != nil {
+					fullpath = filepath.Join(parent.Path, fullpath)
+					parent = tree.LookupRoot(parent.RefTree)
+				}
 
-	if err := conf.Validate(); err != nil {
+				// Check if we should include this subvolume
+				if len(includeExprs) > 0 {
+					var matched bool
+					for _, expr := range includeExprs {
+						if expr.MatchString(fullpath) {
+							matched = true
+							break
+						}
+					}
+					if !matched {
+						return nil
+					}
+				}
+
+				// Check if we should exclude this subvolume
+				if len(excludeExprs) > 0 {
+					for _, expr := range excludeExprs {
+						if expr.MatchString(fullpath) {
+							return nil
+						}
+					}
+				}
+
+				name := filepath.Base(fullpath)
+				if volume.SubvolumeNameInUse(name) {
+					name = fmt.Sprintf("%s-%d", name, time.Now().Unix())
+				}
+				subvols = append(subvols, config.Subvolume{
+					Name: name,
+					Path: fullpath,
+				})
+			}
+			return nil
+		})
+		volume.Subvolumes = subvols
+		if len(volume.Subvolumes) > 0 {
+			conf.Volumes = append(conf.Volumes, volume)
+		}
+	}
+
+	var buf bytes.Buffer
+	err = toml.NewEncoder(&buf).SetIndentSymbol("    ").Encode(conf)
+	if err != nil {
 		return err
 	}
 
-	if conf.Verbosity >= 3 {
-		logger.Printf("Config: %+v\n", conf)
+	var indentedBuf strings.Builder
+	scanner := bufio.NewScanner(&buf)
+	var indent int
+	for scanner.Scan() {
+		text := scanner.Text()
+		if text == "" {
+			indent = 0
+		}
+		if strings.HasPrefix(text, "[[volumes.subvolumes") {
+			indent++
+		}
+		indentedBuf.WriteString(strings.Repeat("    ", indent))
+		indentedBuf.WriteString(text + "\n")
 	}
 
+	fmt.Println(indentedBuf.String())
 	return nil
 }

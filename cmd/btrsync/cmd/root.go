@@ -19,18 +19,29 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
+	"github.com/spf13/viper"
 
 	"github.com/tinyzimmer/btrsync/cmd/btrsync/cmd/config"
 )
 
 var (
+	v         = viper.New()
 	envPrefix = "BTRSYNC"
 	cfgFile   string
 	conf      = config.NewDefaultConfig()
 	logger    = log.New(os.Stderr, "", log.LstdFlags)
 )
+
+func logLevel(level int, format string, args ...interface{}) {
+	if conf.Verbosity >= level {
+		logger.Printf(format, args...)
+	}
+}
 
 func Execute(version string) {
 	if err := NewRootCommand(version).Execute(); err != nil {
@@ -61,4 +72,64 @@ func NewRootCommand(version string) *cobra.Command {
 	rootCommand.AddCommand(NewConfigCommand())
 
 	return rootCommand
+}
+func initConfig(cmd *cobra.Command, args []string) error {
+	v.BindPFlag("snapshots_dir", cmd.PersistentFlags().Lookup("snapshots-dir"))
+	v.BindPFlag("verbosity", cmd.PersistentFlags().Lookup("verbose"))
+
+	if cfgFile != "" {
+		// Use config file from the flag.
+		v.SetConfigFile(cfgFile)
+	} else {
+		cfgdir, err := os.UserConfigDir()
+		cobra.CheckErr(err)
+		v.AddConfigPath(".")                              // Current directory
+		v.AddConfigPath(filepath.Join(cfgdir, "btrsync")) // User config directory
+		v.AddConfigPath("/etc/btrsync")                   // System config directory
+		v.SetConfigType("toml")
+		v.SetConfigName("btrsync.toml")
+	}
+
+	if err := v.ReadInConfig(); err == nil {
+		if err := v.Unmarshal(&conf, viper.DecodeHook(config.DurationHookFunc())); err != nil {
+			return err
+		}
+		logLevel(1, "Using config file: %s", v.ConfigFileUsed())
+	} else {
+		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
+			return err
+		}
+	}
+
+	v.SetEnvPrefix(envPrefix)
+	v.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
+	v.AutomaticEnv()
+
+	cmd.PersistentFlags().VisitAll(func(f *pflag.Flag) {
+		if !f.Changed && v.IsSet(f.Name) {
+			cmd.PersistentFlags().SetAnnotation(f.Name, cobra.BashCompOneRequiredFlag, []string{"false"})
+			cmd.PersistentFlags().Set(f.Name, v.GetString(f.Name))
+		}
+	})
+	for _, c := range cmd.Commands() {
+		c.PersistentFlags().VisitAll(func(f *pflag.Flag) {
+			if !f.Changed && v.IsSet(f.Name) {
+				cmd.PersistentFlags().SetAnnotation(f.Name, cobra.BashCompOneRequiredFlag, []string{"false"})
+				cmd.PersistentFlags().Set(f.Name, v.GetString(f.Name))
+			}
+		})
+		c.Flags().VisitAll(func(f *pflag.Flag) {
+			if !f.Changed && v.IsSet(f.Name) {
+				cmd.PersistentFlags().SetAnnotation(f.Name, cobra.BashCompOneRequiredFlag, []string{"false"})
+				cmd.PersistentFlags().Set(f.Name, v.GetString(f.Name))
+			}
+		})
+	}
+
+	if err := conf.Validate(); err != nil {
+		return err
+	}
+
+	logLevel(3, "Rendered config: %+v", conf)
+	return nil
 }
