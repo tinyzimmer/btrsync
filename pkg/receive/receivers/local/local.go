@@ -63,7 +63,10 @@ func (n *localReceiver) Snapshot(ctx receivers.ReceiveContext, path string, uuid
 	// Retry this a couple times for unknown reason still
 	var rbtree *btrfs.RBRoot
 	var retries int
-	for rbtree == nil || retries <= 3 {
+	for rbtree == nil && retries <= 3 {
+		if ctx.Verbosity() >= 1 && retries > 0 {
+			ctx.Log().Printf("error while trying to build tree of %q: %s\n", root, err)
+		}
 		rbtree, err = btrfs.BuildRBTree(root)
 		if err != nil {
 			retries++
