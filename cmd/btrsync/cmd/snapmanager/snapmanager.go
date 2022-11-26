@@ -128,7 +128,7 @@ func (sm *SnapManager) PruneSnapshots() error {
 		sm.config.logLevel(3, "Considering snapshot %q created at %s for max retention deletion\n", fullPath, snap.CreationTime)
 		if time.Since(snap.CreationTime) > sm.config.SnapshotRetention {
 			sm.config.logLevel(0, "Deleting snapshot %q\n", fullPath)
-			if err := btrfs.DeleteSubvolume(fullPath); err != nil {
+			if err := btrfs.DeleteSubvolume(fullPath, true); err != nil {
 				return err
 			}
 		} else {
@@ -173,7 +173,7 @@ func (sm *SnapManager) PruneSnapshots() error {
 			snap := toDel
 			fullPath := filepath.Join(sm.config.SnapshotDirectory, snap.Name)
 			sm.config.logLevel(0, "Deleting snapshot %q\n", fullPath)
-			if err := btrfs.DeleteSubvolume(fullPath); err != nil {
+			if err := btrfs.DeleteSubvolume(fullPath, true); err != nil {
 				return err
 			}
 		}

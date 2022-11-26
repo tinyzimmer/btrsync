@@ -16,6 +16,7 @@ If not, see <https://www.gnu.org/licenses/>.
 package btrfs
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -105,7 +106,7 @@ func SetSubvolumeReadOnly(path string, readonly bool) error {
 
 // DeleteSubvolume deletes the subvolume at the given path. If the subvolume
 // is read-only then it will be made read-write before deletion.
-func DeleteSubvolume(path string) error {
+func DeleteSubvolume(path string, force bool) error {
 	path, err := filepath.Abs(path)
 	if err != nil {
 		return err
@@ -121,9 +122,13 @@ func DeleteSubvolume(path string) error {
 		return err
 	}
 	if flags&SubvolReadOnly != 0 {
-		flags = flags &^ SubvolReadOnly
-		if err := ioctlUint64(f.Fd(), BTRFS_IOC_SUBVOL_SETFLAGS, &flags); err != nil {
-			return err
+		if force {
+			flags = flags &^ SubvolReadOnly
+			if err := ioctlUint64(f.Fd(), BTRFS_IOC_SUBVOL_SETFLAGS, &flags); err != nil {
+				return err
+			}
+		} else {
+			return fmt.Errorf("subvolume %s is read-only", path)
 		}
 	}
 	return os.RemoveAll(path)

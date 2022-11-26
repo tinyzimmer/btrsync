@@ -69,7 +69,7 @@ func SearchWithPath(path string) SearchOption {
 			return err
 		}
 		opts.path = path
-		return SearchWithRootMount(root)(opts)
+		return SearchWithRootMount(root.Path)(opts)
 	}
 }
 

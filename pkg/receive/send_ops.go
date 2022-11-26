@@ -16,8 +16,6 @@ If not, see <https://www.gnu.org/licenses/>.
 package receive
 
 import (
-	"bytes"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -71,9 +69,9 @@ func processSubvol(ctx *receiveCtx, attrs sendstream.CmdAttrs) error {
 		}
 		ctx.currentSubvolInfo = nil
 	}
-	path := string(attrs[sendstream.BTRFS_SEND_A_PATH])
-	ctransid := binary.LittleEndian.Uint64(attrs[sendstream.BTRFS_SEND_A_CTRANSID])
-	uuid, err := uuid.FromBytes(attrs[sendstream.BTRFS_SEND_A_UUID])
+	path := attrs.GetPath()
+	ctransid := attrs.GetCtransid()
+	uuid, err := attrs.GetUUID()
 	if err != nil {
 		return fmt.Errorf("processSubvol: error parsing uuid %w", err)
 	}
@@ -101,17 +99,17 @@ func processSnapshot(ctx *receiveCtx, attrs sendstream.CmdAttrs) error {
 		}
 		ctx.currentSubvolInfo = nil
 	}
-	path := string(attrs[sendstream.BTRFS_SEND_A_PATH])
-	snapuuid, err := uuid.FromBytes(attrs[sendstream.BTRFS_SEND_A_UUID])
+	path := attrs.GetPath()
+	snapuuid, err := attrs.GetUUID()
 	if err != nil {
 		return fmt.Errorf("processSnapshot: error parsing uuid %w", err)
 	}
-	ctransid := binary.LittleEndian.Uint64(attrs[sendstream.BTRFS_SEND_A_CTRANSID])
-	cloneUUID, err := uuid.FromBytes(attrs[sendstream.BTRFS_SEND_A_CLONE_UUID])
+	ctransid := attrs.GetCtransid()
+	cloneUUID, err := attrs.GetCloneUUID()
 	if err != nil {
 		return fmt.Errorf("processSnapshot: error parsing clone uuid %w", err)
 	}
-	cloneCtransid := binary.LittleEndian.Uint64(attrs[sendstream.BTRFS_SEND_A_CLONE_CTRANSID])
+	cloneCtransid := attrs.GetCloneCtransid()
 	ctx.LogVerbose(0, "At snapshot %q\n", path)
 	ctx.LogVerbose(2, "receiving snapshot %q uuid=%s, stransid=%d, clone_uuid=%s, clone_stransid=%d\n",
 		path, snapuuid, ctransid, cloneUUID, cloneCtransid)
@@ -130,8 +128,8 @@ func processMkfile(ctx *receiveCtx, attrs sendstream.CmdAttrs) error {
 	}); err != nil {
 		return fmt.Errorf("processMkfile: %w", err)
 	}
-	path := string(attrs[sendstream.BTRFS_SEND_A_PATH])
-	ino := binary.LittleEndian.Uint64(attrs[sendstream.BTRFS_SEND_A_INO])
+	path := attrs.GetPath()
+	ino := attrs.GetIno()
 	if ctx.verbosity >= 2 {
 		ctx.LogVerbose(2, "receiving mkfile %q ino=%d\n", path, ino)
 	}
@@ -144,8 +142,8 @@ func processMkdir(ctx *receiveCtx, attrs sendstream.CmdAttrs) error {
 	}); err != nil {
 		return fmt.Errorf("processMkfile: %w", err)
 	}
-	path := string(attrs[sendstream.BTRFS_SEND_A_PATH])
-	ino := binary.LittleEndian.Uint64(attrs[sendstream.BTRFS_SEND_A_INO])
+	path := attrs.GetPath()
+	ino := attrs.GetIno()
 	ctx.LogVerbose(2, "receiving mkfile %q ino=%d\n", path, ino)
 	return ctx.receiver.Mkdir(ctx, path, ino)
 }
@@ -156,10 +154,10 @@ func processMknod(ctx *receiveCtx, attrs sendstream.CmdAttrs) error {
 	}); err != nil {
 		return fmt.Errorf("processMknod: %w", err)
 	}
-	path := string(attrs[sendstream.BTRFS_SEND_A_PATH])
-	ino := binary.LittleEndian.Uint64(attrs[sendstream.BTRFS_SEND_A_INO])
-	mode := binary.LittleEndian.Uint32(attrs[sendstream.BTRFS_SEND_A_MODE])
-	rdev := binary.LittleEndian.Uint64(attrs[sendstream.BTRFS_SEND_A_RDEV])
+	path := attrs.GetPath()
+	ino := attrs.GetIno()
+	mode := attrs.GetMode32()
+	rdev := attrs.GetRdev()
 	ctx.LogVerbose(2, "receiving mknod %q ino=%d mode=%o rdev=%d\n", path, ino, mode, rdev)
 	return ctx.receiver.Mknod(ctx, path, ino, fs.FileMode(mode), rdev)
 }
@@ -170,8 +168,8 @@ func processMkfifo(ctx *receiveCtx, attrs sendstream.CmdAttrs) error {
 	}); err != nil {
 		return fmt.Errorf("processMkfifo: %w", err)
 	}
-	path := string(attrs[sendstream.BTRFS_SEND_A_PATH])
-	ino := binary.LittleEndian.Uint64(attrs[sendstream.BTRFS_SEND_A_INO])
+	path := attrs.GetPath()
+	ino := attrs.GetIno()
 	ctx.LogVerbose(2, "receiving mkfifo %q ino=%d\n", path, ino)
 	return ctx.receiver.Mkfifo(ctx, path, ino)
 }
@@ -182,8 +180,8 @@ func processMksock(ctx *receiveCtx, attrs sendstream.CmdAttrs) error {
 	}); err != nil {
 		return fmt.Errorf("processMksock: %w", err)
 	}
-	path := string(attrs[sendstream.BTRFS_SEND_A_PATH])
-	ino := binary.LittleEndian.Uint64(attrs[sendstream.BTRFS_SEND_A_INO])
+	path := attrs.GetPath()
+	ino := attrs.GetIno()
 	ctx.LogVerbose(2, "receiving mksock %q ino=%d\n", path, ino)
 	return ctx.receiver.Mksock(ctx, path, ino)
 }
@@ -194,9 +192,9 @@ func processSymlink(ctx *receiveCtx, attrs sendstream.CmdAttrs) error {
 	}); err != nil {
 		return fmt.Errorf("processSymlink: %w", err)
 	}
-	path := string(attrs[sendstream.BTRFS_SEND_A_PATH])
-	ino := binary.LittleEndian.Uint64(attrs[sendstream.BTRFS_SEND_A_INO])
-	pathLink := string(attrs[sendstream.BTRFS_SEND_A_PATH_LINK])
+	path := attrs.GetPath()
+	ino := attrs.GetIno()
+	pathLink := attrs.GetPathLink()
 	ctx.LogVerbose(2, "receiving symlink %q ino=%d -> %q\n", path, ino, pathLink)
 	return ctx.receiver.Symlink(ctx, path, ino, pathLink)
 }
@@ -207,8 +205,8 @@ func processRename(ctx *receiveCtx, attrs sendstream.CmdAttrs) error {
 	}); err != nil {
 		return fmt.Errorf("processRename: %w", err)
 	}
-	path := string(attrs[sendstream.BTRFS_SEND_A_PATH])
-	pathTo := string(attrs[sendstream.BTRFS_SEND_A_PATH_TO])
+	path := attrs.GetPath()
+	pathTo := attrs.GetPathTo()
 	ctx.LogVerbose(2, "receiving rename %q -> %q", path, pathTo)
 	return ctx.receiver.Rename(ctx, path, pathTo)
 }
@@ -219,8 +217,8 @@ func processLink(ctx *receiveCtx, attrs sendstream.CmdAttrs) error {
 	}); err != nil {
 		return fmt.Errorf("processLink: %w", err)
 	}
-	path := string(attrs[sendstream.BTRFS_SEND_A_PATH])
-	pathLink := string(attrs[sendstream.BTRFS_SEND_A_PATH_LINK])
+	path := attrs.GetPath()
+	pathLink := attrs.GetPathLink()
 	ctx.LogVerbose(2, "receiving link %q -> %q", path, pathLink)
 	return ctx.receiver.Link(ctx, path, pathLink)
 }
@@ -231,7 +229,7 @@ func processUnlink(ctx *receiveCtx, attrs sendstream.CmdAttrs) error {
 	}); err != nil {
 		return fmt.Errorf("processUnlink: %w", err)
 	}
-	path := string(attrs[sendstream.BTRFS_SEND_A_PATH])
+	path := attrs.GetPath()
 	ctx.LogVerbose(2, "receiving unlink %q", path)
 	return ctx.receiver.Unlink(ctx, path)
 }
@@ -242,7 +240,7 @@ func processRmdir(ctx *receiveCtx, attrs sendstream.CmdAttrs) error {
 	}); err != nil {
 		return fmt.Errorf("processRmdir: %w", err)
 	}
-	path := string(attrs[sendstream.BTRFS_SEND_A_PATH])
+	path := attrs.GetPath()
 	ctx.LogVerbose(2, "receiving rmdir %q", path)
 	return ctx.receiver.Rmdir(ctx, path)
 }
@@ -253,9 +251,9 @@ func processWrite(ctx *receiveCtx, attrs sendstream.CmdAttrs) error {
 	}); err != nil {
 		return fmt.Errorf("processWrite: %w", err)
 	}
-	path := string(attrs[sendstream.BTRFS_SEND_A_PATH])
-	offset := binary.LittleEndian.Uint64(attrs[sendstream.BTRFS_SEND_A_FILE_OFFSET])
-	data := attrs[sendstream.BTRFS_SEND_A_DATA]
+	path := attrs.GetPath()
+	offset := attrs.GetFileOffset()
+	data := attrs.GetData()
 	ctx.LogVerbose(2, "receiving write %q offset=%d len=%d", path, offset, len(data))
 	return ctx.receiver.Write(ctx, path, offset, data)
 }
@@ -267,18 +265,18 @@ func processEncodedWrite(ctx *receiveCtx, attrs sendstream.CmdAttrs) error {
 	}); err != nil {
 		return fmt.Errorf("processEncodedWrite: %w", err)
 	}
-	path := string(attrs[sendstream.BTRFS_SEND_A_PATH])
+	path := attrs.GetPath()
 	var op btrfs.EncodedWriteOp
-	op.Offset = binary.LittleEndian.Uint64(attrs[sendstream.BTRFS_SEND_A_FILE_OFFSET])
-	op.Data = attrs[sendstream.BTRFS_SEND_A_DATA]
-	op.UnencodedFileLength = binary.LittleEndian.Uint64(attrs[sendstream.BTRFS_SEND_A_UNENCODED_FILE_LEN])
-	op.UnencodedLength = binary.LittleEndian.Uint64(attrs[sendstream.BTRFS_SEND_A_UNENCODED_LEN])
-	op.UnencodedOffset = binary.LittleEndian.Uint64(attrs[sendstream.BTRFS_SEND_A_UNENCODED_OFFSET])
+	op.Offset = attrs.GetFileOffset()
+	op.Data = attrs.GetData()
+	op.UnencodedFileLength = attrs.GetUnencodedFileLen()
+	op.UnencodedLength = attrs.GetUnencodedLen()
+	op.UnencodedOffset = attrs.GetUnencodedOffset()
 	if len(attrs[sendstream.BTRFS_SEND_A_COMPRESSION]) > 0 {
-		op.Compression = btrfs.CompressionType(binary.LittleEndian.Uint32(attrs[sendstream.BTRFS_SEND_A_COMPRESSION]))
+		op.Compression = attrs.GetCompressionType()
 	}
 	if len(attrs[sendstream.BTRFS_SEND_A_ENCRYPTION]) > 0 {
-		op.Encryption = binary.LittleEndian.Uint32(attrs[sendstream.BTRFS_SEND_A_ENCRYPTION])
+		op.Encryption = attrs.GetEncryptionType()
 	}
 	ctx.LogVerbose(2, "receiving encoded write %q offset=%d len=%d", path, op.Offset, len(op.Data))
 	if ctx.forceDecompress {
@@ -312,12 +310,12 @@ func processClone(ctx *receiveCtx, attrs sendstream.CmdAttrs) error {
 	if err != nil {
 		return fmt.Errorf("processClone: error parsing cloneUUID: %w", err)
 	}
-	path := string(attrs[sendstream.BTRFS_SEND_A_PATH])
-	offset := binary.LittleEndian.Uint64(attrs[sendstream.BTRFS_SEND_A_FILE_OFFSET])
-	cloneLen := binary.LittleEndian.Uint64(attrs[sendstream.BTRFS_SEND_A_CLONE_LEN])
-	cloneCTransID := binary.LittleEndian.Uint64(attrs[sendstream.BTRFS_SEND_A_CLONE_CTRANSID])
-	clonePath := string(attrs[sendstream.BTRFS_SEND_A_CLONE_PATH])
-	cloneOffset := binary.LittleEndian.Uint64(attrs[sendstream.BTRFS_SEND_A_CLONE_OFFSET])
+	path := attrs.GetPath()
+	offset := attrs.GetFileOffset()
+	cloneLen := attrs.GetCloneLen()
+	cloneCTransID := attrs.GetCloneCTransid()
+	clonePath := attrs.GetClonePath()
+	cloneOffset := attrs.GetCloneOffset()
 	ctx.LogVerbose(2, "receiving clone %q offset=%d len=%d cloneUUID=%s cloneCTransID=%d clonePath=%q cloneOffset=%d",
 		path, offset, cloneLen, cloneUUID, cloneCTransID, clonePath, cloneOffset)
 	return ctx.receiver.Clone(ctx, path, offset, cloneLen, cloneUUID, cloneCTransID, clonePath, cloneOffset)
@@ -329,9 +327,9 @@ func processSetXattr(ctx *receiveCtx, attrs sendstream.CmdAttrs) error {
 	}); err != nil {
 		return fmt.Errorf("processSetXattr: %w", err)
 	}
-	path := string(attrs[sendstream.BTRFS_SEND_A_PATH])
-	name := string(attrs[sendstream.BTRFS_SEND_A_XATTR_NAME])
-	data := attrs[sendstream.BTRFS_SEND_A_XATTR_DATA]
+	path := attrs.GetPath()
+	name := attrs.GetXattrName()
+	data := attrs.GetXattrData()
 	ctx.LogVerbose(2, "receiving setxattr %q name=%q len=%d", path, name, len(data))
 	return ctx.receiver.SetXattr(ctx, path, name, data)
 }
@@ -342,8 +340,8 @@ func processRemoveXattr(ctx *receiveCtx, attrs sendstream.CmdAttrs) error {
 	}); err != nil {
 		return fmt.Errorf("processRemoveXattr: %w", err)
 	}
-	path := string(attrs[sendstream.BTRFS_SEND_A_PATH])
-	name := string(attrs[sendstream.BTRFS_SEND_A_XATTR_NAME])
+	path := attrs.GetPath()
+	name := attrs.GetXattrName()
 	ctx.LogVerbose(2, "receiving removexattr %q name=%q", path, name)
 	return ctx.receiver.RemoveXattr(ctx, path, name)
 }
@@ -354,8 +352,8 @@ func processTruncate(ctx *receiveCtx, attrs sendstream.CmdAttrs) error {
 	}); err != nil {
 		return fmt.Errorf("processTruncate: %w", err)
 	}
-	path := string(attrs[sendstream.BTRFS_SEND_A_PATH])
-	size := binary.LittleEndian.Uint64(attrs[sendstream.BTRFS_SEND_A_SIZE])
+	path := attrs.GetPath()
+	size := attrs.GetSize()
 	ctx.LogVerbose(2, "receiving truncate %q size=%d", path, size)
 	return ctx.receiver.Truncate(ctx, path, size)
 }
@@ -366,8 +364,8 @@ func processChmod(ctx *receiveCtx, attrs sendstream.CmdAttrs) error {
 	}); err != nil {
 		return fmt.Errorf("processChmod: %w", err)
 	}
-	path := string(attrs[sendstream.BTRFS_SEND_A_PATH])
-	mode := binary.LittleEndian.Uint64(attrs[sendstream.BTRFS_SEND_A_MODE])
+	path := attrs.GetPath()
+	mode := attrs.GetMode64()
 	ctx.LogVerbose(2, "receiving chmod %q mode=%o", path, mode)
 	return ctx.receiver.Chmod(ctx, path, fs.FileMode(mode))
 }
@@ -378,14 +376,9 @@ func processChown(ctx *receiveCtx, attrs sendstream.CmdAttrs) error {
 	}); err != nil {
 		return fmt.Errorf("processChown: %w", err)
 	}
-	path := string(attrs[sendstream.BTRFS_SEND_A_PATH])
-	var uid, gid uint64
-	if err := binary.Read(bytes.NewReader(attrs[sendstream.BTRFS_SEND_A_UID]), binary.LittleEndian, &uid); err != nil {
-		return fmt.Errorf("processChown: error parsing uid: %w", err)
-	}
-	if err := binary.Read(bytes.NewReader(attrs[sendstream.BTRFS_SEND_A_GID]), binary.LittleEndian, &gid); err != nil {
-		return fmt.Errorf("processChown: error parsing gid: %w", err)
-	}
+	path := attrs.GetPath()
+	uid := attrs.GetUid()
+	gid := attrs.GetGid()
 	ctx.LogVerbose(2, "receiving chown %q uid=%d gid=%d", path, uid, gid)
 	return ctx.receiver.Chown(ctx, path, uid, gid)
 }
@@ -396,20 +389,19 @@ func processUtimes(ctx *receiveCtx, attrs sendstream.CmdAttrs) error {
 	}); err != nil {
 		return fmt.Errorf("processUtimes: %w", err)
 	}
-	path := string(attrs[sendstream.BTRFS_SEND_A_PATH])
-	var atimespec, mtimespec, ctimespec btrfs.BtrfsTimespec
-	if err := binary.Read(bytes.NewReader(attrs[sendstream.BTRFS_SEND_A_ATIME]), binary.LittleEndian, &atimespec); err != nil {
+	path := attrs.GetPath()
+	atime, err := attrs.GetAtime()
+	if err != nil {
 		return fmt.Errorf("processUtimes: error parsing atime: %w", err)
 	}
-	if err := binary.Read(bytes.NewReader(attrs[sendstream.BTRFS_SEND_A_MTIME]), binary.LittleEndian, &mtimespec); err != nil {
+	mtime, err := attrs.GetMtime()
+	if err != nil {
 		return fmt.Errorf("processUtimes: error parsing mtime: %w", err)
 	}
-	if err := binary.Read(bytes.NewReader(attrs[sendstream.BTRFS_SEND_A_CTIME]), binary.LittleEndian, &ctimespec); err != nil {
+	ctime, err := attrs.GetCtime()
+	if err != nil {
 		return fmt.Errorf("processUtimes: error parsing ctime: %w", err)
 	}
-	atime := atimespec.Time()
-	mtime := mtimespec.Time()
-	ctime := ctimespec.Time()
 	ctx.LogVerbose(2, "receiving utimes %q atime=%v mtime=%v ctime=%v", path, atime, mtime, ctime)
 	return ctx.receiver.Utimes(ctx, path, atime, mtime, ctime)
 }
@@ -420,9 +412,9 @@ func processUpdateExtent(ctx *receiveCtx, attrs sendstream.CmdAttrs) error {
 	}); err != nil {
 		return fmt.Errorf("processUpdateExtent: %w", err)
 	}
-	path := string(attrs[sendstream.BTRFS_SEND_A_PATH])
-	offset := binary.LittleEndian.Uint64(attrs[sendstream.BTRFS_SEND_A_FILE_OFFSET])
-	size := binary.LittleEndian.Uint64(attrs[sendstream.BTRFS_SEND_A_SIZE])
+	path := attrs.GetPath()
+	offset := attrs.GetFileOffset()
+	size := attrs.GetSize()
 	ctx.LogVerbose(2, "receiving update_extent %q offset=%d size=%d", path, offset, size)
 	return ctx.receiver.UpdateExtent(ctx, path, offset, size)
 }
@@ -434,14 +426,11 @@ func processEnableVerity(ctx *receiveCtx, attrs sendstream.CmdAttrs) error {
 	}); err != nil {
 		return fmt.Errorf("processEnableVerity: %w", err)
 	}
-	path := string(attrs[sendstream.BTRFS_SEND_A_PATH])
-	blockSize := binary.LittleEndian.Uint32(attrs[sendstream.BTRFS_SEND_A_VERITY_BLOCK_SIZE])
-	salt := attrs[sendstream.BTRFS_SEND_A_VERITY_SALT_DATA]
-	sig := attrs[sendstream.BTRFS_SEND_A_VERITY_SIG_DATA]
-	var algorithm uint8
-	if err := binary.Read(bytes.NewReader(attrs[sendstream.BTRFS_SEND_A_VERITY_ALGORITHM]), binary.LittleEndian, &algorithm); err != nil {
-		return fmt.Errorf("processEnableVerity: error parsing algorithm: %w", err)
-	}
+	path := attrs.GetPath()
+	blockSize := attrs.GetVerityBlockSize()
+	salt := attrs.GetVeritySalt()
+	sig := attrs.GetVeritySig()
+	algorithm := attrs.GetVerityAlgorithm()
 	return ctx.receiver.EnableVerity(ctx, path, algorithm, blockSize, salt, sig)
 }
 
@@ -451,10 +440,10 @@ func processFallocate(ctx *receiveCtx, attrs sendstream.CmdAttrs) error {
 	}); err != nil {
 		return fmt.Errorf("processFallocate: %w", err)
 	}
-	path := string(attrs[sendstream.BTRFS_SEND_A_PATH])
-	mode := binary.LittleEndian.Uint32(attrs[sendstream.BTRFS_SEND_A_FALLOCATE_MODE])
-	offset := binary.LittleEndian.Uint64(attrs[sendstream.BTRFS_SEND_A_FILE_OFFSET])
-	size := binary.LittleEndian.Uint64(attrs[sendstream.BTRFS_SEND_A_SIZE])
+	path := attrs.GetPath()
+	mode := attrs.GetFallocateMode()
+	offset := attrs.GetFileOffset()
+	size := attrs.GetSize()
 	ctx.LogVerbose(2, "receiving fallocate %q mode=%d offset=%d size=%d", path, mode, offset, size)
 	return ctx.receiver.Fallocate(ctx, path, fs.FileMode(mode), offset, size)
 }
@@ -465,8 +454,8 @@ func processFileattr(ctx *receiveCtx, attrs sendstream.CmdAttrs) error {
 	}); err != nil {
 		return fmt.Errorf("processFileattr: %w", err)
 	}
-	path := string(attrs[sendstream.BTRFS_SEND_A_PATH])
-	fileattr := binary.LittleEndian.Uint32(attrs[sendstream.BTRFS_SEND_A_FILEATTR])
+	path := attrs.GetPath()
+	fileattr := attrs.GetFileattr()
 	ctx.LogVerbose(2, "receiving fileattr %q fileattr=%d", path, fileattr)
 	return ctx.receiver.Fileattr(ctx, path, fileattr)
 }

@@ -171,6 +171,7 @@ func _() {
 	_ = x[MultipleObjectIDs-18446744073709551361]
 	_ = x[FirstFreeObjectID-256]
 	_ = x[LastFreeObjectID-18446744073709551360]
+	_ = x[DevItemsObjectID-1]
 }
 
 const (
@@ -206,6 +207,7 @@ func _() {
 	// An "invalid array index" compiler error signifies that the constant values have changed.
 	// Re-run the stringer command to generate them again.
 	var x [1]struct{}
+	_ = x[DeviceItemKey-216]
 	_ = x[DirItemKey-84]
 	_ = x[InodeRefKey-12]
 	_ = x[InodeItemKey-1]
@@ -221,6 +223,7 @@ const (
 	_SearchKey_name_3 = "RootItemKey"
 	_SearchKey_name_4 = "RootBackrefKey"
 	_SearchKey_name_5 = "RootRefKey"
+	_SearchKey_name_6 = "DeviceItemKey"
 )
 
 func (i SearchKey) String() string {
@@ -237,6 +240,8 @@ func (i SearchKey) String() string {
 		return _SearchKey_name_4
 	case i == 156:
 		return _SearchKey_name_5
+	case i == 216:
+		return _SearchKey_name_6
 	default:
 		return "SearchKey(" + strconv.FormatInt(int64(i), 10) + ")"
 	}

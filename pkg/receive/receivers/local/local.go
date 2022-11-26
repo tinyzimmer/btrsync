@@ -64,7 +64,7 @@ func (n *localReceiver) Snapshot(ctx receivers.ReceiveContext, path string, uuid
 		if retries > 0 {
 			ctx.LogVerbose(1, "error while trying to build tree of %q, retrying: %s\n", root, err)
 		}
-		rbtree, err = btrfs.BuildRBTree(root)
+		rbtree, err = btrfs.BuildRBTree(root.Path)
 		if err != nil {
 			retries++
 			time.Sleep(100 * time.Millisecond)

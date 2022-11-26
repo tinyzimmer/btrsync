@@ -158,7 +158,7 @@ func (b *BtrfsTree) UpdateNode(uid widget.TreeNodeID, isBranch bool, node fyne.C
 			// Handle the delete button
 			if button, ok := item.(*widget.Button); ok && button.Text == "Delete" {
 				button.OnTapped = func() {
-					if err := btrfs.DeleteSubvolume(snapshotPath); err != nil {
+					if err := btrfs.DeleteSubvolume(snapshotPath, true); err != nil {
 						logger.Println("Error deleting snapshot:", err)
 					}
 					b.Tree.Refresh()

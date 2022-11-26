@@ -26,27 +26,135 @@ For comprehensive usage of the bindings, see the go.dev. But below are overviews
 
 ### Volumes
 
-Volume-wide bindings (such as interacting with RAID levels) are very barebones at the moment, but more will potentially come.
+Volume-wide bindings (such as interacting with RAID levels) are basically non-existant at the moment, but more will potentially come.
 
-_TODO_
+```go
+package main
+
+import (
+	"fmt"
+	"path/filepath"
+
+	"github.com/tinyzimmer/btrsync/pkg/btrfs"
+)
+
+func main() {
+	// List all mounted Btrfs paths
+	mounts, err := btrfs.ListBtrfsMounts()
+	if err != nil {
+		panic(err)
+	}
+	for _, mount := range mounts {
+		fmt.Println(mount.Device) // The device the filesystem is on
+		isBtrfs, err := btrfs.IsBtrfs(mount.Path)
+		fmt.Println(isBtrfs, err) // Would print true for all mounts
+
+		path := filepath.Join(mount.Path, "some-directory")
+		root, err := btrfs.FindRootMount(path)
+		fmt.Println(root, err) // Would print the mount itself
+
+		// Get usage information about the device
+		info, err := btrfs.GetDeviceInfo(root.Path) // or root.DeviceInfo()
+		fmt.Println(info, err)
+
+		// Get statistics about the device
+		stats, err := btrfs.GetDeviceStats(root.Path) // or root.DeviceStats()
+		fmt.Println(stats, err)
+	}
+}
+```
 
 ### Subvolumes
 
-_TODO_
+```go
+package main
 
-TODO: Scrubbing/Balancing
+import (
+	"fmt"
+
+	"github.com/tinyzimmer/btrsync/pkg/btrfs"
+)
+
+func main() {
+	// Create a subvolume
+	err := btrfs.CreateSubvolume("/mnt/btrfs/subvol")
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(btrfs.IsSubvolume("/mnt/btrfs/subvol")) // true
+	// Retrieve information about the subvolume. See docs for other search options.
+	info, err := btrfs.SubvolumeSearch(btrfs.SearchWithPath("/mnt/btrfs/subvol"))
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(info)
+
+	// Make the subvolume read-only
+	err = btrfs.SetSubvolumeReadOnly("/mnt/btrfs/subvol")
+	if err != nil {
+		panic(err)
+	}
+
+	// Try to delete the subvolume
+	err = btrfs.DeleteSubvolume("/mnt/btrfs/subvol", false)
+	fmt.Println(err) // fails: subvolume is read-only
+	// Force delete removes read-only flag
+	err = btrfs.DeleteSubvolume("/mnt/btrfs/subvol", true)
+	if err != nil {
+		panic(err)
+	}
+
+	// Build a red-black tree of a volume or subvolume
+	tree, err := btrfs.BuildRBTree("/mnt/btrfs")
+	if err != nil {
+		panic(err)
+	}
+
+	// Iterate the tree in-order
+	tree.InOrderIterate(func(info *btrfs.RootInfo, lastErr error) error {
+		fmt.Println(info.UUID)
+		return nil
+	})
+}
+```
 
 ### Snapshots
 
-_TODO_
+```go
+package main
+
+import (
+	"fmt"
+
+	"github.com/tinyzimmer/btrsync/pkg/btrfs"
+)
+
+func main() {
+	// Create a snapshot at /mnt/btrfs/subvol/snapshot
+	err := btrfs.CreateSnapshot("/mnt/btrfs/subvol", btrfs.WithSnapshotName("snapshot"))
+	if err != nil { 
+		return err 
+	}
+	// Create a snapshot using the full path to the snapshot (must reside on the same BTRFS volume)
+	err = btrfs.CreateSnapshot("/mnt/btrfs/subvol", btrfs.WithSnapshotPath("/mnt/btrfs/subvol/snapshots/snapshot-1"))
+	if err != nil { 
+		return err 
+	}
+	// Delete a snapshot
+	err = btrfs.DeleteSnapshot("/mnt/btrfs/subvol/snapshots/snapshot-1")
+	if err != nil {
+		panic(err)
+	}
+}
+```
 
 ### Sending
 
-_TODO_
+_TODO: For now see the go.dev docs_
 
 ### Receiving
 
-_TODO_
+_TODO: For now see the go.dev docs_
 
 ## Contributing
 

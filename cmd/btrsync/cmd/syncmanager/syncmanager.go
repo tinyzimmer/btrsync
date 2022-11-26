@@ -305,7 +305,7 @@ func (sm *SyncManager) pruneLocalMirror(ctx context.Context) error {
 
 	for _, path := range expired {
 		sm.config.logLevel(0, "Expiring mirrored snapshot %q\n", path)
-		if err := btrfs.DeleteSubvolume(path); err != nil {
+		if err := btrfs.DeleteSubvolume(path, true); err != nil {
 			return fmt.Errorf("error deleting subvolume %q: %w", path, err)
 		}
 	}

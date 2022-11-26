@@ -45,7 +45,9 @@ const (
 
 	FirstFreeObjectID ObjectID = 0x100
 	LastFreeObjectID  ObjectID = 0xffffffffffffff00
+	DevItemsObjectID  ObjectID = 0x1
 
+	DeviceItemKey  SearchKey = 0xd8
 	DirItemKey     SearchKey = 0x54
 	InodeRefKey    SearchKey = 0xc
 	InodeItemKey   SearchKey = 0x1

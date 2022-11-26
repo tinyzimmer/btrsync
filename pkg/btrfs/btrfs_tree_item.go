@@ -57,3 +57,8 @@ func (t TreeItem) RootRef() (BtrfsRootRef, string, error) {
 	var out BtrfsRootRef
 	return out, t.Name, t.decode(&out)
 }
+
+func (t TreeItem) DevItem() (BtrfsDevItem, error) {
+	var out BtrfsDevItem
+	return out, t.decode(&out)
+}

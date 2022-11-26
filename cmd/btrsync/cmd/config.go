@@ -111,9 +111,12 @@ func generateConfig(cmd *cobra.Command, args []string) error {
 	var err error
 	conf := config.NewDefaultConfig()
 	if len(generateMounts) == 0 {
-		generateMounts, err = btrfs.ListBtrfsMounts()
+		mounts, err := btrfs.ListBtrfsMounts()
 		if err != nil {
 			return err
+		}
+		for _, mount := range mounts {
+			generateMounts = append(generateMounts, mount.Path)
 		}
 	}
 	// Populate volumes

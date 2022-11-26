@@ -16,10 +16,13 @@ If not, see <https://www.gnu.org/licenses/>.
 package sendstream
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/tinyzimmer/btrsync/pkg/btrfs"
 	"github.com/tinyzimmer/btrsync/pkg/receive/receivers"
 )
 
@@ -175,17 +178,181 @@ func (c CmdHeader) IsZero() bool {
 
 type CmdAttrs map[SendAttribute][]byte
 
-func (c CmdAttrs) SubvolInfo(cmd SendCommand) (*receivers.ReceivingSubvolume, error) {
+func (c CmdAttrs) GetSubvolInfo(cmd SendCommand) (*receivers.ReceivingSubvolume, error) {
 	if cmd != BTRFS_SEND_C_SUBVOL && cmd != BTRFS_SEND_C_SNAPSHOT {
 		return nil, fmt.Errorf("not a subvol or snapshot command")
 	}
-	uuid, err := uuid.FromBytes(c[BTRFS_SEND_A_UUID])
+	uuid, err := c.GetUUID()
 	if err != nil {
 		return nil, err
 	}
 	return &receivers.ReceivingSubvolume{
-		Path:     string(c[BTRFS_SEND_A_PATH]),
+		Path:     c.GetPath(),
 		UUID:     uuid,
-		Ctransid: binary.LittleEndian.Uint64(c[BTRFS_SEND_A_CTRANSID]),
+		Ctransid: c.GetCtransid(),
 	}, nil
+}
+
+func (c CmdAttrs) GetData() []byte {
+	return c[BTRFS_SEND_A_DATA]
+}
+
+func (c CmdAttrs) GetFileOffset() uint64 {
+	return binary.LittleEndian.Uint64(c[BTRFS_SEND_A_FILE_OFFSET])
+}
+
+func (c CmdAttrs) GetPath() string {
+	return string(c[BTRFS_SEND_A_PATH])
+}
+
+func (c CmdAttrs) GetPathLink() string {
+	return string(c[BTRFS_SEND_A_PATH_LINK])
+}
+
+func (c CmdAttrs) GetPathTo() string {
+	return string(c[BTRFS_SEND_A_PATH_TO])
+}
+
+func (c CmdAttrs) GetUUID() (uuid.UUID, error) {
+	return uuid.FromBytes(c[BTRFS_SEND_A_UUID])
+}
+
+func (c CmdAttrs) GetCloneUUID() (uuid.UUID, error) {
+	return uuid.FromBytes(c[BTRFS_SEND_A_CLONE_UUID])
+}
+
+func (c CmdAttrs) GetCtransid() uint64 {
+	return binary.LittleEndian.Uint64(c[BTRFS_SEND_A_CTRANSID])
+}
+
+func (c CmdAttrs) GetCloneCtransid() uint64 {
+	return binary.LittleEndian.Uint64(c[BTRFS_SEND_A_CLONE_CTRANSID])
+}
+
+func (c CmdAttrs) GetIno() uint64 {
+	return binary.LittleEndian.Uint64(c[BTRFS_SEND_A_INO])
+}
+
+func (c CmdAttrs) GetMode32() uint32 {
+	return binary.LittleEndian.Uint32(c[BTRFS_SEND_A_MODE])
+}
+
+func (c CmdAttrs) GetMode64() uint64 {
+	return binary.LittleEndian.Uint64(c[BTRFS_SEND_A_MODE])
+}
+
+func (c CmdAttrs) GetRdev() uint64 {
+	return binary.LittleEndian.Uint64(c[BTRFS_SEND_A_RDEV])
+}
+
+func (c CmdAttrs) GetUnencodedFileLen() uint64 {
+	return binary.LittleEndian.Uint64(c[BTRFS_SEND_A_UNENCODED_FILE_LEN])
+}
+
+func (c CmdAttrs) GetUnencodedLen() uint64 {
+	return binary.LittleEndian.Uint64(c[BTRFS_SEND_A_UNENCODED_LEN])
+}
+
+func (c CmdAttrs) GetUnencodedOffset() uint64 {
+	return binary.LittleEndian.Uint64(c[BTRFS_SEND_A_UNENCODED_OFFSET])
+}
+
+func (c CmdAttrs) GetCompressionType() btrfs.CompressionType {
+	return btrfs.CompressionType(binary.LittleEndian.Uint32(c[BTRFS_SEND_A_COMPRESSION]))
+}
+
+func (c CmdAttrs) GetEncryptionType() uint32 {
+	return binary.LittleEndian.Uint32(c[BTRFS_SEND_A_ENCRYPTION])
+}
+
+func (c CmdAttrs) GetCloneLen() uint64 {
+	return binary.LittleEndian.Uint64(c[BTRFS_SEND_A_CLONE_LEN])
+}
+
+func (c CmdAttrs) GetCloneOffset() uint64 {
+	return binary.LittleEndian.Uint64(c[BTRFS_SEND_A_CLONE_OFFSET])
+}
+
+func (c CmdAttrs) GetClonePath() string {
+	return string(c[BTRFS_SEND_A_CLONE_PATH])
+}
+
+func (c CmdAttrs) GetCloneCTransid() uint64 {
+	return binary.LittleEndian.Uint64(c[BTRFS_SEND_A_CLONE_CTRANSID])
+}
+
+func (c CmdAttrs) GetXattrName() string {
+	return string(c[BTRFS_SEND_A_XATTR_NAME])
+}
+
+func (c CmdAttrs) GetXattrData() []byte {
+	return c[BTRFS_SEND_A_XATTR_DATA]
+}
+
+func (c CmdAttrs) GetSize() uint64 {
+	return binary.LittleEndian.Uint64(c[BTRFS_SEND_A_SIZE])
+}
+
+func (c CmdAttrs) GetUid() uint64 {
+	return binary.LittleEndian.Uint64(c[BTRFS_SEND_A_UID])
+}
+
+func (c CmdAttrs) GetGid() uint64 {
+	return binary.LittleEndian.Uint64(c[BTRFS_SEND_A_GID])
+}
+
+func (c CmdAttrs) GetAtime() (time.Time, error) {
+	var ts btrfs.BtrfsTimespec
+	if err := binary.Read(bytes.NewReader(c[BTRFS_SEND_A_ATIME]), binary.LittleEndian, &ts); err != nil {
+		return time.Time{}, err
+	}
+	return ts.Time(), nil
+}
+
+func (c CmdAttrs) GetMtime() (time.Time, error) {
+	var ts btrfs.BtrfsTimespec
+	if err := binary.Read(bytes.NewReader(c[BTRFS_SEND_A_MTIME]), binary.LittleEndian, &ts); err != nil {
+		return time.Time{}, err
+	}
+	return ts.Time(), nil
+}
+
+func (c CmdAttrs) GetOtime() (time.Time, error) {
+	var ts btrfs.BtrfsTimespec
+	if err := binary.Read(bytes.NewReader(c[BTRFS_SEND_A_OTIME]), binary.LittleEndian, &ts); err != nil {
+		return time.Time{}, err
+	}
+	return ts.Time(), nil
+}
+
+func (c CmdAttrs) GetCtime() (time.Time, error) {
+	var ts btrfs.BtrfsTimespec
+	if err := binary.Read(bytes.NewReader(c[BTRFS_SEND_A_CTIME]), binary.LittleEndian, &ts); err != nil {
+		return time.Time{}, err
+	}
+	return ts.Time(), nil
+}
+
+func (c CmdAttrs) GetVerityBlockSize() uint32 {
+	return binary.LittleEndian.Uint32(c[BTRFS_SEND_A_VERITY_BLOCK_SIZE])
+}
+
+func (c CmdAttrs) GetVeritySalt() []byte {
+	return c[BTRFS_SEND_A_VERITY_SALT_DATA]
+}
+
+func (c CmdAttrs) GetVeritySig() []byte {
+	return c[BTRFS_SEND_A_VERITY_SIG_DATA]
+}
+
+func (c CmdAttrs) GetVerityAlgorithm() uint8 {
+	return c[BTRFS_SEND_A_VERITY_ALGORITHM][0]
+}
+
+func (c CmdAttrs) GetFallocateMode() uint32 {
+	return binary.LittleEndian.Uint32(c[BTRFS_SEND_A_FALLOCATE_MODE])
+}
+
+func (c CmdAttrs) GetFileattr() uint32 {
+	return binary.LittleEndian.Uint32(c[BTRFS_SEND_A_FILEATTR])
 }

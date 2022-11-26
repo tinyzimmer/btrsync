@@ -16,7 +16,10 @@ If not, see <https://www.gnu.org/licenses/>.
 package btrfs
 
 import (
+	"fmt"
+	"math"
 	"os"
+	"strings"
 
 	"github.com/google/uuid"
 )
@@ -29,16 +32,43 @@ type DeviceInfo struct {
 	Path       string
 }
 
-// GetDeviceInfo returns information about a device at the given path.
+type DeviceStats struct {
+	WriteIOErrors    uint64
+	ReadIOErrors     uint64
+	FlushIOErrors    uint64
+	CorruptionErrors uint64
+	GenerationErrors uint64
+}
+
+// GetDeviceInfo returns information about the device at the given path or device.
 func GetDeviceInfo(path string) (*DeviceInfo, error) {
-	f, err := os.Open(path)
+	var info *BtrfsMount
+	var err error
+	if strings.HasPrefix(path, "/dev/") {
+		info, err = FindMountForDevice(path)
+	} else {
+		info, err = FindRootMount(path)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return getDeviceInfoFromRoot(info.Path)
+}
+
+func getDeviceInfoFromRoot(rootPath string) (*DeviceInfo, error) {
+	f, err := os.OpenFile(rootPath, os.O_RDONLY, os.ModeDir)
 	if err != nil {
 		return nil, err
 	}
 	defer f.Close()
-	rawInfo, err := getDeviceInfo(f.Fd())
+	// Find the device ID
+	devid, err := getDevID(f.Fd())
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("could not get device ID: %w", err)
+	}
+	rawInfo, err := getDeviceInfo(f.Fd(), devid)
+	if err != nil {
+		return nil, fmt.Errorf("could not get device info: %w", err)
 	}
 	return &DeviceInfo{
 		DeviceID:   rawInfo.Devid,
@@ -49,7 +79,84 @@ func GetDeviceInfo(path string) (*DeviceInfo, error) {
 	}, nil
 }
 
-func getDeviceInfo(fd uintptr) (*deviceInfoArgs, error) {
-	args := &deviceInfoArgs{}
-	return args, callReadIoctl(fd, BTRFS_IOC_DEV_INFO, args)
+// GetDeviceStats returns statistics about the device at the given path or device.
+func GetDeviceStats(path string) (*DeviceStats, error) {
+	var info *BtrfsMount
+	var err error
+	if strings.HasPrefix(path, "/dev/") {
+		info, err = FindMountForDevice(path)
+	} else {
+		info, err = FindRootMount(path)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return getDeviceStatsFromRoot(info.Path)
+}
+
+func getDeviceStatsFromRoot(rootPath string) (*DeviceStats, error) {
+	f, err := os.OpenFile(rootPath, os.O_RDONLY, os.ModeDir)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	// Find the device ID
+	devid, err := getDevID(f.Fd())
+	if err != nil {
+		return nil, fmt.Errorf("could not get device ID: %w", err)
+	}
+	rawInfo, err := readDeviceStats(f.Fd(), devid)
+	if err != nil {
+		return nil, fmt.Errorf("could not get device stats: %w", err)
+	}
+	return &DeviceStats{
+		WriteIOErrors:    rawInfo.Values[0],
+		ReadIOErrors:     rawInfo.Values[1],
+		FlushIOErrors:    rawInfo.Values[2],
+		CorruptionErrors: rawInfo.Values[3],
+		GenerationErrors: rawInfo.Values[4],
+	}, nil
+}
+
+func getDevID(fd uintptr) (uint64, error) {
+	params := SearchParams{
+		Tree_id:      uint64(ChunkTreeObjectID),
+		Min_type:     uint32(DeviceItemKey),
+		Max_type:     uint32(DeviceItemKey),
+		Min_objectid: uint64(DevItemsObjectID),
+		Max_objectid: uint64(DevItemsObjectID),
+		Max_offset:   math.MaxUint64,
+		Max_transid:  math.MaxUint64,
+	}
+	var devid uint64
+	err := walkBtrfsTreeFd(fd, params, func(hdr SearchHeader, item TreeItem, lastErr error) error {
+		if lastErr == nil {
+			return lastErr
+		}
+		if hdr.Type == uint32(DeviceItemKey) {
+			item, err := item.DevItem()
+			if err != nil {
+				return err
+			}
+			devid = item.Devid
+		}
+		return nil
+	})
+	if err != nil {
+		return 0, err
+	}
+	if devid == 0 {
+		devid++
+	}
+	return devid, nil
+}
+
+func getDeviceInfo(fd uintptr, devid uint64) (*deviceInfoArgs, error) {
+	args := &deviceInfoArgs{Devid: devid}
+	return args, callWriteIoctl(fd, BTRFS_IOC_DEV_INFO, args)
+}
+
+func readDeviceStats(fd uintptr, devid uint64) (*getDeviceStats, error) {
+	args := &getDeviceStats{Devid: devid, Items: 5, Flags: 0}
+	return args, callWriteIoctl(fd, BTRFS_IOC_GET_DEV_STATS, args)
 }

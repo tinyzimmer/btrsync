@@ -44,7 +44,7 @@ func ResolveSubvolumeDetails(logger *log.Logger, verbosity int, subvolumePath, s
 			logger.Printf("Retrying subvolume lookup after error: %v", err)
 		}
 		info, err = btrfs.SubvolumeSearch(
-			btrfs.SearchWithRootMount(mount),
+			btrfs.SearchWithRootMount(mount.Path),
 			btrfs.SearchWithSnapshots(),
 			btrfs.SearchWithPath(subvolumePath),
 		)

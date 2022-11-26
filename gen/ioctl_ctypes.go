@@ -65,7 +65,9 @@ const (
 
 	FirstFreeObjectID ObjectID = C.BTRFS_FIRST_FREE_OBJECTID
 	LastFreeObjectID  ObjectID = C.BTRFS_LAST_FREE_OBJECTID
+	DevItemsObjectID  ObjectID = C.BTRFS_DEV_ITEMS_OBJECTID
 
+	DeviceItemKey  SearchKey = C.BTRFS_DEV_ITEM_KEY
 	DirItemKey     SearchKey = C.BTRFS_DIR_ITEM_KEY
 	InodeRefKey    SearchKey = C.BTRFS_INODE_REF_KEY
 	InodeItemKey   SearchKey = C.BTRFS_INODE_ITEM_KEY
@@ -97,6 +99,8 @@ type balanceProgress C.struct_btrfs_balance_progress
 // type BtrfsInodeItem C.struct_btrfs_inode_item
 
 // type BtrfsRootItem C.struct_btrfs_root_item
+
+// type BtrfsDevItem C.struct_btrfs_dev_item
 
 type BtrfsRootRef C.struct_btrfs_root_ref
 

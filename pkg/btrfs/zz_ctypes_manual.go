@@ -19,6 +19,20 @@ import "time"
 
 const BTRFS_SUPER_MAGIC = 0x9123683E
 
+type BtrfsDevItem struct {
+	Devid       uint64
+	Total_bytes uint64
+	Bytes_used  uint64
+	Io_align    uint32
+	Io_width    uint32
+	Sector_size uint32
+	Dev_group   uint32
+	Seek_speed  uint8
+	Bandwidth   uint8
+	Uuid        [16]uint8
+	Fsid        [16]uint8
+}
+
 type BtrfsDirItem struct {
 	Location BtrfsDiskKey
 	Type     uint8

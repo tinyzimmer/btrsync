@@ -44,7 +44,7 @@ func runTree(cmd *cobra.Command, args []string) error {
 	}
 
 	// Find the root ID of the subvolume we are descending from
-	subvol, err := btrfs.SubvolumeSearch(btrfs.SearchWithRootMount(rootMount), btrfs.SearchWithPath(path))
+	subvol, err := btrfs.SubvolumeSearch(btrfs.SearchWithRootMount(rootMount.Path), btrfs.SearchWithPath(path))
 	if err != nil {
 		return err
 	}
