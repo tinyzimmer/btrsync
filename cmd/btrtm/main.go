@@ -31,8 +31,8 @@ import (
 
 	"github.com/spf13/viper"
 
-	"github.com/tinyzimmer/btrsync/cmd/btrsync/cmd/config"
 	"github.com/tinyzimmer/btrsync/cmd/btrtm/btrfstree"
+	"github.com/tinyzimmer/btrsync/pkg/cmd/config"
 )
 
 func main() {
@@ -92,7 +92,7 @@ func initConfig() (*config.Config, error) {
 	if err := v.ReadInConfig(); err != nil {
 		return nil, err
 	}
-	if err := v.Unmarshal(&conf); err != nil {
+	if err := v.Unmarshal(&conf, viper.DecodeHook(config.DurationHookFunc())); err != nil {
 		return nil, err
 	}
 

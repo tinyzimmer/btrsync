@@ -16,7 +16,7 @@ If not, see <https://www.gnu.org/licenses/>.
 // Btrsync is a tool for synchronizing btrfs snapshots locally and over a network.
 package main
 
-import "github.com/tinyzimmer/btrsync/cmd/btrsync/cmd"
+import "github.com/tinyzimmer/btrsync/pkg/cmd"
 
 var version string
 

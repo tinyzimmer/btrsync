@@ -42,7 +42,6 @@ func ProcessSendStream(r io.Reader, opts ...Option) error {
 		Context:  context.Background(),
 		log:      log.New(io.Discard, "", 0),
 		receiver: nop.New(),
-		errors:   make(chan error, 1),
 	}
 	// Apply options
 	for _, opt := range opts {
@@ -50,6 +49,8 @@ func ProcessSendStream(r io.Reader, opts ...Option) error {
 			return err
 		}
 	}
+	var cancel func()
+	ctx.Context, cancel = context.WithCancel(ctx.Context)
 
 	// Start an error counter and create a stream scanner
 	var streamErrors int
@@ -57,15 +58,9 @@ func ProcessSendStream(r io.Reader, opts ...Option) error {
 
 	// Scan the stream in a goroutine so we can block on either the context or the stream
 	// itself. This allows us to stop processing the stream if the context is canceled.
+	errCh := make(chan error, 1)
 	go func() {
-		defer func() {
-			if ctx.currentSubvolInfo != nil {
-				if err := ctx.receiver.FinishSubvolume(ctx); err != nil {
-					ctx.log.Printf("Error finishing subvolume: %s", err)
-				}
-			}
-		}()
-		var offset uint64
+		defer cancel()
 		if ctx.startOffset > 0 {
 			ctx.log.Printf("Skipping to offset %d", ctx.startOffset)
 		}
@@ -74,30 +69,55 @@ func ProcessSendStream(r io.Reader, opts ...Option) error {
 			if ctx.verbosity >= 2 {
 				ctx.log.Println("processing send cmd:", cmd.Cmd)
 			}
-			if ctx.startOffset > offset {
-				offset++
+
+			// Check if we are seeking
+			if ctx.startOffset > ctx.currentOffset {
+				ctx.currentOffset++
 				if cmd.Cmd == sendstream.BTRFS_SEND_C_SUBVOL || cmd.Cmd == sendstream.BTRFS_SEND_C_SNAPSHOT {
 					path := string(attrs[sendstream.BTRFS_SEND_A_PATH])
 					ctransid := binary.LittleEndian.Uint64(attrs[sendstream.BTRFS_SEND_A_CTRANSID])
 					uuid, err := uuid.FromBytes(attrs[sendstream.BTRFS_SEND_A_UUID])
 					if err != nil {
-						ctx.errors <- fmt.Errorf("error parsing uuid: %s", err)
+						errCh <- fmt.Errorf("error parsing uuid: %s", err)
 						return
 					}
 					ctx.log.Printf("Resuming subvol %s", path)
-					ctx.currentSubvolInfo = &receivers.ReceivingSubvolume{
+					ctx.currentSubvolInfo = &sendstream.ReceivingSubvolume{
 						Path: path, UUID: uuid, Ctransid: ctransid,
 					}
 				}
 				if ctx.verbosity >= 2 {
-					ctx.log.Printf("skipping cmd at offset %d", offset)
+					ctx.log.Printf("skipping cmd at offset %d", ctx.currentOffset)
 				}
 				continue
 			}
+
+			// Run any preop functions
+			if preOp, ok := ctx.receiver.(receivers.PreOpReceiver); ok {
+				err := preOp.PreOp(ctx, cmd, attrs)
+				if err != nil {
+					ctx.currentOffset++
+					if !errors.Is(err, receivers.ErrSkipCommand) {
+						streamErrors++
+						if streamErrors >= ctx.maxErrors {
+							errCh <- fmt.Errorf("max errors reached (%d): last error: %w", streamErrors, err)
+							return
+						}
+						ctx.log.Printf("Error processing pre-op: %s", err)
+					}
+					continue
+				}
+			}
+
+			// Dispatch the command
 			var err error
 			if cmd.Cmd == sendstream.BTRFS_SEND_C_END {
 				if ctx.honorEndCmd {
-					ctx.errors <- nil
+					if ctx.currentSubvolInfo != nil {
+						if err := ctx.receiver.FinishSubvolume(ctx); err != nil {
+							ctx.log.Printf("Error finishing subvolume: %s", err)
+						}
+					}
 					return
 				}
 				err = ctx.receiver.FinishSubvolume(ctx)
@@ -107,26 +127,54 @@ func ProcessSendStream(r io.Reader, opts ...Option) error {
 			} else {
 				err = fmt.Errorf("%w: %d", ErrInvalidSendCommand, cmd.Cmd)
 			}
-			if err != nil {
+			if err != nil && !errors.Is(err, receivers.ErrSkipCommand) {
 				ctx.log.Println("error processing command:", err)
 				streamErrors++
 				if streamErrors >= ctx.maxErrors {
-					ctx.errors <- fmt.Errorf("max errors reached (%d): last error: %w", streamErrors, err)
+					errCh <- fmt.Errorf("max errors reached (%d): last error: %w", streamErrors, err)
 					return
 				}
 			}
-			offset++
+
+			// Run any post op functions
+			if postOp, ok := ctx.receiver.(receivers.PostOpReceiver); ok {
+				err := postOp.PostOp(ctx, cmd, attrs)
+				if err != nil && !errors.Is(err, receivers.ErrSkipCommand) {
+					streamErrors++
+					if streamErrors >= ctx.maxErrors {
+						errCh <- fmt.Errorf("max errors reached (%d): last error: %w", streamErrors, err)
+						return
+					}
+					ctx.log.Printf("Error processing pre-op: %s", err)
+				}
+			}
+
+			// Increment the offset
+			ctx.currentOffset++
 		}
+
+		// Check for any stream errors
 		if err := stream.Err(); err != nil {
-			ctx.errors <- stream.Err()
+			errCh <- stream.Err()
 			return
 		}
-		ctx.errors <- nil
+
+		if ctx.currentSubvolInfo != nil {
+			if err := ctx.receiver.FinishSubvolume(ctx); err != nil {
+				ctx.log.Printf("Error finishing subvolume: %s", err)
+			}
+		}
 	}()
-	select {
-	case <-ctx.Context.Done():
-		return fmt.Errorf("context finished: %w", ctx.Err())
-	case err := <-ctx.errors:
-		return err
+	<-ctx.Context.Done()
+	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		return ctx.Err()
 	}
+	ctx.LogVerbose(1, "context finished, checking for errors from stream")
+	close(errCh)
+	for err := range errCh {
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }

@@ -87,7 +87,7 @@ func (n *MemFSReceiver) Mkdir(ctx receivers.ReceiveContext, path string, ino uin
 	return n.Fs.Mkdir(ctx.ResolvePath(path), 0755)
 }
 
-func (n *MemFSReceiver) Mknod(ctx receivers.ReceiveContext, path string, ino uint64, mode fs.FileMode, rdev uint64) error {
+func (n *MemFSReceiver) Mknod(ctx receivers.ReceiveContext, path string, ino uint64, mode uint32, rdev uint64) error {
 	return receivers.ErrNotSupported
 }
 
@@ -169,7 +169,7 @@ func (n *MemFSReceiver) Truncate(ctx receivers.ReceiveContext, path string, size
 	return f.Truncate(int64(size))
 }
 
-func (n *MemFSReceiver) Chmod(ctx receivers.ReceiveContext, path string, mode fs.FileMode) error {
+func (n *MemFSReceiver) Chmod(ctx receivers.ReceiveContext, path string, mode uint64) error {
 	return nil
 }
 
@@ -189,7 +189,7 @@ func (n *MemFSReceiver) EnableVerity(ctx receivers.ReceiveContext, path string, 
 	return receivers.ErrNotSupported
 }
 
-func (n *MemFSReceiver) Fallocate(ctx receivers.ReceiveContext, path string, mode fs.FileMode, offset uint64, len uint64) error {
+func (n *MemFSReceiver) Fallocate(ctx receivers.ReceiveContext, path string, mode uint32, offset uint64, len uint64) error {
 	n.curFiles[ctx.ResolvePath(path)] = fmodeFile
 	return nil
 }

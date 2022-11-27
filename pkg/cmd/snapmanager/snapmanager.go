@@ -23,8 +23,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/tinyzimmer/btrsync/cmd/btrsync/cmd/snaputil"
 	"github.com/tinyzimmer/btrsync/pkg/btrfs"
+	"github.com/tinyzimmer/btrsync/pkg/cmd/snaputil"
 )
 
 // Config is the config for a snapshot manager.
@@ -82,7 +82,7 @@ func (sm *SnapManager) EnsureMostRecentSnapshot() error {
 	if mostRecent != nil {
 		sm.config.logLevel(2, "Most recent snapshot found at %q: %s\n", mostRecent.FullPath, mostRecent.CreationTime)
 		if time.Since(mostRecent.CreationTime) < sm.config.SnapshotInterval {
-			sm.config.logLevel(2, "Most recent snapshot is within interval, skipping\n")
+			sm.config.logLevel(2, "Most recent snapshot is within interval, skipping new snapshot creation\n")
 			return nil
 		}
 	}

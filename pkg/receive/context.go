@@ -20,6 +20,7 @@ import (
 	"log"
 
 	"github.com/tinyzimmer/btrsync/pkg/receive/receivers"
+	"github.com/tinyzimmer/btrsync/pkg/sendstream"
 )
 
 type receiveCtx struct {
@@ -33,13 +34,12 @@ type receiveCtx struct {
 	receiver        receivers.Receiver
 	ignoreChecksums bool
 	startOffset     uint64
+	currentOffset   uint64
 	// State
-	currentSubvolInfo *receivers.ReceivingSubvolume
-	// Channel for returned error, if any
-	errors chan (error)
+	currentSubvolInfo *sendstream.ReceivingSubvolume
 }
 
-func (r *receiveCtx) CurrentSubvolume() *receivers.ReceivingSubvolume {
+func (r *receiveCtx) CurrentSubvolume() *sendstream.ReceivingSubvolume {
 	return r.currentSubvolInfo
 }
 
@@ -51,4 +51,8 @@ func (r *receiveCtx) LogVerbose(level int, format string, args ...interface{}) {
 	if r.verbosity >= level {
 		r.log.Printf(format, args...)
 	}
+}
+
+func (r *receiveCtx) CurrentOffset() uint64 {
+	return r.currentOffset
 }

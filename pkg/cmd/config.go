@@ -29,8 +29,8 @@ import (
 	"github.com/pelletier/go-toml/v2"
 	"github.com/spf13/cobra"
 
-	"github.com/tinyzimmer/btrsync/cmd/btrsync/cmd/config"
 	"github.com/tinyzimmer/btrsync/pkg/btrfs"
+	"github.com/tinyzimmer/btrsync/pkg/cmd/config"
 )
 
 var (

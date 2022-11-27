@@ -21,6 +21,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -90,6 +91,9 @@ func (n *localReceiver) Snapshot(ctx receivers.ReceiveContext, path string, uuid
 		return fmt.Errorf("could not find parent subvolume for snapshot %q", path)
 	}
 	dest := filepath.Join(n.destPath, path)
+	if !strings.HasPrefix(parent.FullPath, root.Path) {
+		parent.FullPath = filepath.Join(root.Path, parent.FullPath)
+	}
 	ctx.LogVerbose(2, "creating snapshot of %q at %q\n", parent.FullPath, dest)
 	if err := btrfs.CreateSnapshot(parent.FullPath, btrfs.WithSnapshotPath(dest)); err != nil {
 		return err
@@ -104,7 +108,7 @@ func isNilUUID(uu uuid.UUID) bool {
 func (n *localReceiver) Mkfile(ctx receivers.ReceiveContext, path string, ino uint64) error {
 	path = n.resolvePath(ctx, path)
 	ctx.LogVerbose(3, "creating file %q with mode 0600\n", path)
-	f, err := os.OpenFile(path, os.O_CREATE, 0600)
+	f, err := os.Create(path)
 	if err != nil {
 		return err
 	}
@@ -117,10 +121,10 @@ func (n *localReceiver) Mkdir(ctx receivers.ReceiveContext, path string, ino uin
 	return os.Mkdir(path, 0755)
 }
 
-func (n *localReceiver) Mknod(ctx receivers.ReceiveContext, path string, ino uint64, mode fs.FileMode, rdev uint64) error {
+func (n *localReceiver) Mknod(ctx receivers.ReceiveContext, path string, ino uint64, mode uint32, rdev uint64) error {
 	path = n.resolvePath(ctx, path)
 	ctx.LogVerbose(3, "creating device %q with mode %d and rdev %d\n", path, mode, rdev)
-	return syscall.Mknod(path, uint32(mode), int(rdev))
+	return syscall.Mknod(path, mode, int(rdev))
 }
 
 func (n *localReceiver) Mkfifo(ctx receivers.ReceiveContext, path string, ino uint64) error {
@@ -131,8 +135,13 @@ func (n *localReceiver) Mkfifo(ctx receivers.ReceiveContext, path string, ino ui
 
 func (n *localReceiver) Mksock(ctx receivers.ReceiveContext, path string, ino uint64) error {
 	path = n.resolvePath(ctx, path)
-	ctx.LogVerbose(3, "creating socket %q with mode 0600\n", path)
-	return syscall.Mknod(path, 0600|syscall.S_IFSOCK, 0)
+	ctx.LogVerbose(3, "creating unix domain socket at %q\n", path)
+	sock, err := syscall.Socket(syscall.AF_UNIX, syscall.SOCK_STREAM, 0)
+	if err != nil {
+		return err
+	}
+	defer syscall.Close(sock)
+	return syscall.Bind(sock, &syscall.SockaddrUnix{Name: path})
 }
 
 func (n *localReceiver) Symlink(ctx receivers.ReceiveContext, path string, ino uint64, linkTo string) error {
@@ -223,10 +232,10 @@ func (n *localReceiver) Truncate(ctx receivers.ReceiveContext, path string, size
 	return os.Truncate(path, int64(size))
 }
 
-func (n *localReceiver) Chmod(ctx receivers.ReceiveContext, path string, mode fs.FileMode) error {
+func (n *localReceiver) Chmod(ctx receivers.ReceiveContext, path string, mode uint64) error {
 	path = n.resolvePath(ctx, path)
 	ctx.LogVerbose(3, "chmod %q to %o\n", path, mode)
-	return os.Chmod(path, mode)
+	return os.Chmod(path, fs.FileMode(mode))
 }
 
 func (n *localReceiver) Chown(ctx receivers.ReceiveContext, path string, uid uint64, gid uint64) error {
@@ -255,7 +264,7 @@ func (n *localReceiver) EnableVerity(ctx receivers.ReceiveContext, path string, 
 	return btrfs.EnableVerity(path, uint32(algorithm), blockSize, salt, sig)
 }
 
-func (n *localReceiver) Fallocate(ctx receivers.ReceiveContext, path string, mode fs.FileMode, offset uint64, len uint64) error {
+func (n *localReceiver) Fallocate(ctx receivers.ReceiveContext, path string, mode uint32, offset uint64, len uint64) error {
 	path = n.resolvePath(ctx, path)
 	ctx.LogVerbose(3, "fallocate %q to %d bytes at offset %d\n", path, len, offset)
 	f, err := os.OpenFile(path, os.O_WRONLY, 0600)
@@ -263,7 +272,7 @@ func (n *localReceiver) Fallocate(ctx receivers.ReceiveContext, path string, mod
 		return err
 	}
 	defer f.Close()
-	return syscall.Fallocate(int(f.Fd()), uint32(mode), int64(offset), int64(len))
+	return syscall.Fallocate(int(f.Fd()), mode, int64(offset), int64(len))
 }
 
 func (n *localReceiver) Fileattr(ctx receivers.ReceiveContext, path string, attr uint32) error {

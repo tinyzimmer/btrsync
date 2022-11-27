@@ -44,6 +44,17 @@ type Config struct {
 	SnapshotRetentionInterval Duration `mapstructure:"snapshot_retention_interval" toml:"snapshot_retention_interval,omitempty"`
 	// TimeFormat is the global time format for snapshots.
 	TimeFormat string `mapstructure:"time_format" toml:"time_format,omitempty"`
+	// SSHUser is the user to use for SSH connections to this mirror. If left unset, defaults
+	// to the current user.
+	SSHUser string `mapstructure:"ssh_user" toml:"ssh_user,omitempty"`
+	// SSHPassword is the password to use for SSH connections to this mirror. If left unset,
+	// or no identity key is provided, passwordless authentication is attempted.
+	SSHPassword string `mapstructure:"ssh_password" toml:"ssh_password,omitempty"`
+	// SSHKeyIdentityFile is the path to the SSH key identity file to use for SSH connections.
+	SSHKeyIdentityFile string `mapstructure:"ssh_key_identity_file" toml:"ssh_key_identity_file,omitempty"`
+	// SSHHostKey is the SSH host key to use for SSH connections. If left unset, the host key
+	// is not verified.
+	SSHHostKey string `mapstructure:"ssh_host_key" toml:"ssh_host_key,omitempty"`
 	// Volumes is a list of volumes to sync.
 	Volumes []Volume `mapstructure:"volumes" toml:"volumes,omitempty"`
 	// Mirrors is a list of mirrors to sync snapshots to.
@@ -127,13 +138,71 @@ type Mirror struct {
 	// Path is the location of the mirror. Each subvolume mirrored to this mirror will be
 	// stored in a subdirectory of this path.
 	Path string `mapstructure:"path" toml:"path,omitempty"`
+	// Format is the format to use for snapshots mirrored to this mirror. If left unset,
+	// defaults to "subvolume".
+	Format MirrorFormat `mapstructure:"format" toml:"format,omitempty"`
+	// SSHUser is the user to use for SSH connections to this mirror. If left unset, the
+	// global value is used.
+	SSHUser string `mapstructure:"ssh_user" toml:"ssh_user,omitempty"`
+	// SSHPassword is the password to use for SSH connections to this mirror. If left unset,
+	// the global value is used.
+	SSHPassword string `mapstructure:"ssh_password" toml:"ssh_password,omitempty"`
+	// SSHKeyIdentityFile is the path to the SSH key identity file to use for mirroring
+	// snapshots to this mirror. If left unset, defaults to the global value.
+	SSHKeyIdentityFile string `mapstructure:"ssh_key_identity_file" toml:"ssh_key_identity_file,omitempty"`
+	// SSHHostKey is the host key to use for SSH connections to this mirror. If left unset,
+	// the global value is used.
+	SSHHostKey string `mapstructure:"ssh_host_key" toml:"ssh_host_key,omitempty"`
 	// Disabled is a flag to disable managing this mirror temporarily.
 	Disabled bool `mapstructure:"disabled" toml:"disabled,omitempty"`
 }
 
 // DaemonConfig is the configuration for the daemon process
 type DaemonConfig struct {
+	// ScanInterval is the interval between scans for work to do.
 	ScanInterval Duration `mapstructure:"scan_interval" toml:"scan_interval,omitempty"`
+}
+
+// MirrorFormat is the format of the mirror path.
+type MirrorFormat string
+
+const (
+	// MirrorFormatSubvolume is the subvolume format. This is the default
+	// format if no format is specified. Only works on Btrfs.
+	MirrorFormatSubvolume MirrorFormat = "subvolume"
+	// MirrorFormatDirectory is the directory format. This format is
+	// compatible with all filesystems, however, it does not support
+	// atomic snapshots. The most recent snapshot's contents will be stored
+	// in the mirror path and retention settings will be ignored.
+	MirrorFormatDirectory MirrorFormat = "directory"
+	// // MirrorFormatZfs is the ZFS format. This format is compatible with
+	// // ZFS filesystems. ZFS snapshots are used to create atomic snapshots
+	// // of the subvolume and are stored in the mirror path.
+	// MirrorFormatZfs MirrorFormat = "zfs"
+	// MirrorFormatGzip is the gzip format. This format is compatible with all
+	// filesystems. Snapshots are sent in stream format to the mirror path and
+	// compressed with gzip.
+	MirrorFormatGzip MirrorFormat = "gzip"
+	// MirrorFormatLzw is the lzw format. This format is compatible with all
+	// filesystems. Snapshots are sent in stream format to the mirror path and
+	// compressed with lzw.
+	MirrorFormatLzw MirrorFormat = "lzw"
+	// MirrorFormatZlib is the zlib format. This format is compatible with all
+	// filesystems. Snapshots are sent in stream format to the mirror path and
+	// compressed with zlib.
+	MirrorFormatZlib MirrorFormat = "zlib"
+	// MirrorFormatZstd is the zstd format. This format is compatible with all
+	// filesystems. Snapshots are sent in stream format to the mirror path and
+	// compressed with zstd.
+	MirrorFormatZstd MirrorFormat = "zstd"
+)
+
+func (m MirrorFormat) IsCompressed() bool {
+	switch m {
+	case MirrorFormatGzip, MirrorFormatLzw, MirrorFormatZlib, MirrorFormatZstd:
+		return true
+	}
+	return false
 }
 
 type Duration time.Duration
@@ -476,6 +545,74 @@ func (c Config) ResolveMirrors(vol, subvol string) []Mirror {
 		mirrors = append(mirrors, *mirror)
 	}
 	return s.FilterExcludedMirrors(mirrors)
+}
+
+func (c Config) ResolveMirrorSSHUser(name string) string {
+	mirror := c.GetMirror(name)
+	if mirror == nil {
+		return ""
+	}
+	if !strings.HasPrefix(mirror.Path, "ssh://") {
+		return ""
+	}
+	if mirror.SSHUser != "" {
+		return mirror.SSHUser
+	}
+	if c.SSHUser != "" {
+		return c.SSHUser
+	}
+	return ""
+}
+
+func (c Config) ResolveMirrorSSHPassword(name string) string {
+	mirror := c.GetMirror(name)
+	if mirror == nil {
+		return ""
+	}
+	if !strings.HasPrefix(mirror.Path, "ssh://") {
+		return ""
+	}
+	if mirror.SSHPassword != "" {
+		return mirror.SSHPassword
+	}
+	if c.SSHPassword != "" {
+		return c.SSHPassword
+	}
+	return ""
+}
+
+func (c Config) ResolveMirrorSSHKeyFile(name string) string {
+	mirror := c.GetMirror(name)
+	if mirror == nil {
+		return ""
+	}
+	if !strings.HasPrefix(mirror.Path, "ssh://") {
+		return ""
+	}
+	if mirror.SSHKeyIdentityFile != "" {
+		return mirror.SSHKeyIdentityFile
+	}
+	if c.SSHKeyIdentityFile != "" {
+		return c.SSHKeyIdentityFile
+	}
+	return ""
+}
+
+func (c Config) ResolveMirrorSSHHostKey(name string) string {
+	mirror := c.GetMirror(name)
+	if mirror == nil {
+		return ""
+	}
+	if !strings.HasPrefix(mirror.Path, "ssh://") {
+		return ""
+	}
+	if mirror.SSHHostKey != "" {
+		return mirror.SSHHostKey
+	}
+	if c.SSHHostKey != "" {
+		return c.SSHHostKey
+	}
+	return ""
 }
 
 func (c Config) GetVolume(name string) *Volume {

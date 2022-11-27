@@ -26,7 +26,7 @@ import (
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 
-	"github.com/tinyzimmer/btrsync/cmd/btrsync/cmd/config"
+	"github.com/tinyzimmer/btrsync/pkg/cmd/config"
 )
 
 var (

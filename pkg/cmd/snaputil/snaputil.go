@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/tinyzimmer/btrsync/pkg/btrfs"
 )
 
@@ -79,4 +80,60 @@ func ResolveSubvolumeDetails(logger *log.Logger, verbosity int, subvolumePath, s
 	}
 	info.Snapshots = managedSnaps
 	return info, nil
+}
+
+type IncrementalSnapshot struct {
+	Snapshot *btrfs.RootInfo
+	Parent   *btrfs.RootInfo
+}
+
+// MapParents will map the given snapshots to their parent snapshots. This method assumes
+// that parenthood corresponds to the order of the given snapshots and it will sort them
+// in ascending order of creation time.
+func MapParents(snapshots []*btrfs.RootInfo) []*IncrementalSnapshot {
+	SortSnapshots(snapshots, SortAscending)
+	incSnaps := make([]*IncrementalSnapshot, len(snapshots))
+	for idx, snap := range snapshots {
+		var parent *btrfs.RootInfo
+		if idx == 0 {
+			parent = nil
+		} else {
+			parent = snapshots[idx-1]
+		}
+		incSnaps[idx] = &IncrementalSnapshot{
+			Snapshot: snap,
+			Parent:   parent,
+		}
+	}
+	return incSnaps
+}
+
+// GetSnapshotByName will return the snapshot with the given name from the given slice of snapshots.
+func GetSnapshotByName(snapshots []*btrfs.RootInfo, name string) *btrfs.RootInfo {
+	for _, snap := range snapshots {
+		if snap.Name == name {
+			return snap
+		}
+	}
+	return nil
+}
+
+// SnapshotSliceContains will return true if the given slice of snapshots contains the given snapshot.
+func SnapshotSliceContains(ss []*btrfs.RootInfo, name string) bool {
+	for _, snap := range ss {
+		if name == snap.Name {
+			return true
+		}
+	}
+	return false
+}
+
+// SnapshotUUIDExists will return true if the given UUID exists in the given slice of snapshots.
+func SnapshotUUIDExists(snapshots []*btrfs.RootInfo, uu uuid.UUID) bool {
+	for _, snap := range snapshots {
+		if snap.UUID == uu {
+			return true
+		}
+	}
+	return false
 }

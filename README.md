@@ -12,7 +12,7 @@ Beyond the native (no CGO*) bindings for working with BTRFS file systems provide
  * Automatic volume and subvolume discovery for easy config generation
  * Time machine app for browsing local snapshots
  * Recovery of interrupted transfers by natively scanning the btrfs send streams
- * Mount a btrfs sendfile as an in-memory FUSE filesystem
+ * Mount a btrfs sendfile as an in-memory FUSE filesystem (incremental sendfiles not supported yet)
  * More, but I'm too lazy to document right now
 
 Btrsync can be run either as a daemon process, cron job, or from the command line. 

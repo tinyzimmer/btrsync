@@ -23,7 +23,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/tinyzimmer/btrsync/pkg/btrfs"
-	"github.com/tinyzimmer/btrsync/pkg/receive/receivers"
 )
 
 const (
@@ -178,7 +177,7 @@ func (c CmdHeader) IsZero() bool {
 
 type CmdAttrs map[SendAttribute][]byte
 
-func (c CmdAttrs) GetSubvolInfo(cmd SendCommand) (*receivers.ReceivingSubvolume, error) {
+func (c CmdAttrs) GetSubvolInfo(cmd SendCommand) (*ReceivingSubvolume, error) {
 	if cmd != BTRFS_SEND_C_SUBVOL && cmd != BTRFS_SEND_C_SNAPSHOT {
 		return nil, fmt.Errorf("not a subvol or snapshot command")
 	}
@@ -186,7 +185,7 @@ func (c CmdAttrs) GetSubvolInfo(cmd SendCommand) (*receivers.ReceivingSubvolume,
 	if err != nil {
 		return nil, err
 	}
-	return &receivers.ReceivingSubvolume{
+	return &ReceivingSubvolume{
 		Path:     c.GetPath(),
 		UUID:     uuid,
 		Ctransid: c.GetCtransid(),

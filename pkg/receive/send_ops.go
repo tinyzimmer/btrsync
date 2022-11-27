@@ -18,7 +18,6 @@ package receive
 import (
 	"errors"
 	"fmt"
-	"io/fs"
 
 	"github.com/google/uuid"
 
@@ -77,11 +76,11 @@ func processSubvol(ctx *receiveCtx, attrs sendstream.CmdAttrs) error {
 	}
 	ctx.LogVerbose(0, "At subvol %q\n", path)
 	ctx.LogVerbose(2, "receiving subvol %q uuid=%s, stransid=%d\n", path, uuid, ctransid)
+	ctx.currentSubvolInfo = &sendstream.ReceivingSubvolume{
+		Path: path, UUID: uuid, Ctransid: ctransid,
+	}
 	if err := ctx.receiver.Subvol(ctx, path, uuid, ctransid); err != nil {
 		return err
-	}
-	ctx.currentSubvolInfo = &receivers.ReceivingSubvolume{
-		Path: path, UUID: uuid, Ctransid: ctransid,
 	}
 	return nil
 }
@@ -113,11 +112,11 @@ func processSnapshot(ctx *receiveCtx, attrs sendstream.CmdAttrs) error {
 	ctx.LogVerbose(0, "At snapshot %q\n", path)
 	ctx.LogVerbose(2, "receiving snapshot %q uuid=%s, stransid=%d, clone_uuid=%s, clone_stransid=%d\n",
 		path, snapuuid, ctransid, cloneUUID, cloneCtransid)
+	ctx.currentSubvolInfo = &sendstream.ReceivingSubvolume{
+		Path: path, UUID: snapuuid, Ctransid: ctransid,
+	}
 	if err := ctx.receiver.Snapshot(ctx, path, snapuuid, ctransid, cloneUUID, cloneCtransid); err != nil {
 		return err
-	}
-	ctx.currentSubvolInfo = &receivers.ReceivingSubvolume{
-		Path: path, UUID: snapuuid, Ctransid: ctransid,
 	}
 	return nil
 }
@@ -159,7 +158,7 @@ func processMknod(ctx *receiveCtx, attrs sendstream.CmdAttrs) error {
 	mode := attrs.GetMode32()
 	rdev := attrs.GetRdev()
 	ctx.LogVerbose(2, "receiving mknod %q ino=%d mode=%o rdev=%d\n", path, ino, mode, rdev)
-	return ctx.receiver.Mknod(ctx, path, ino, fs.FileMode(mode), rdev)
+	return ctx.receiver.Mknod(ctx, path, ino, mode, rdev)
 }
 
 func processMkfifo(ctx *receiveCtx, attrs sendstream.CmdAttrs) error {
@@ -367,7 +366,7 @@ func processChmod(ctx *receiveCtx, attrs sendstream.CmdAttrs) error {
 	path := attrs.GetPath()
 	mode := attrs.GetMode64()
 	ctx.LogVerbose(2, "receiving chmod %q mode=%o", path, mode)
-	return ctx.receiver.Chmod(ctx, path, fs.FileMode(mode))
+	return ctx.receiver.Chmod(ctx, path, mode)
 }
 
 func processChown(ctx *receiveCtx, attrs sendstream.CmdAttrs) error {
@@ -445,7 +444,7 @@ func processFallocate(ctx *receiveCtx, attrs sendstream.CmdAttrs) error {
 	offset := attrs.GetFileOffset()
 	size := attrs.GetSize()
 	ctx.LogVerbose(2, "receiving fallocate %q mode=%d offset=%d size=%d", path, mode, offset, size)
-	return ctx.receiver.Fallocate(ctx, path, fs.FileMode(mode), offset, size)
+	return ctx.receiver.Fallocate(ctx, path, mode, offset, size)
 }
 
 func processFileattr(ctx *receiveCtx, attrs sendstream.CmdAttrs) error {

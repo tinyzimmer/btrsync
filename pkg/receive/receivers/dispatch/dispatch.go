@@ -17,7 +17,6 @@ If not, see <https://www.gnu.org/licenses/>.
 package dispatch
 
 import (
-	"io/fs"
 	"time"
 
 	"github.com/google/uuid"
@@ -70,7 +69,7 @@ func (n *dispatchReceiver) Mkdir(ctx receivers.ReceiveContext, path string, ino 
 	return nil
 }
 
-func (n *dispatchReceiver) Mknod(ctx receivers.ReceiveContext, path string, ino uint64, mode fs.FileMode, rdev uint64) error {
+func (n *dispatchReceiver) Mknod(ctx receivers.ReceiveContext, path string, ino uint64, mode uint32, rdev uint64) error {
 	for _, r := range n.receivers {
 		if err := r.Mknod(ctx, path, ino, mode, rdev); err != nil {
 			return err
@@ -197,7 +196,7 @@ func (n *dispatchReceiver) Truncate(ctx receivers.ReceiveContext, path string, s
 	return nil
 }
 
-func (n *dispatchReceiver) Chmod(ctx receivers.ReceiveContext, path string, mode fs.FileMode) error {
+func (n *dispatchReceiver) Chmod(ctx receivers.ReceiveContext, path string, mode uint64) error {
 	for _, r := range n.receivers {
 		if err := r.Chmod(ctx, path, mode); err != nil {
 			return err
@@ -242,7 +241,7 @@ func (n *dispatchReceiver) EnableVerity(ctx receivers.ReceiveContext, path strin
 	return nil
 }
 
-func (n *dispatchReceiver) Fallocate(ctx receivers.ReceiveContext, path string, mode fs.FileMode, offset uint64, len uint64) error {
+func (n *dispatchReceiver) Fallocate(ctx receivers.ReceiveContext, path string, mode uint32, offset uint64, len uint64) error {
 	for _, r := range n.receivers {
 		if err := r.Fallocate(ctx, path, mode, offset, len); err != nil {
 			return err

@@ -35,7 +35,7 @@ var (
 func NewSendCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "send [flags] <subvolumes>...",
-		Short: "Send a snapshot to a local or remote host",
+		Short: "Send a snapshot",
 		Args:  cobra.MinimumNArgs(1),
 		RunE:  send,
 	}

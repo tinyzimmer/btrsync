@@ -18,7 +18,6 @@ If not, see <https://www.gnu.org/licenses/>.
 package nop
 
 import (
-	"io/fs"
 	"time"
 
 	"github.com/google/uuid"
@@ -49,7 +48,7 @@ func (n *nopReceiver) Mkdir(ctx receivers.ReceiveContext, path string, ino uint6
 	return nil
 }
 
-func (n *nopReceiver) Mknod(ctx receivers.ReceiveContext, path string, ino uint64, mode fs.FileMode, rdev uint64) error {
+func (n *nopReceiver) Mknod(ctx receivers.ReceiveContext, path string, ino uint64, mode uint32, rdev uint64) error {
 	return nil
 }
 
@@ -105,7 +104,7 @@ func (n *nopReceiver) Truncate(ctx receivers.ReceiveContext, path string, size u
 	return nil
 }
 
-func (n *nopReceiver) Chmod(ctx receivers.ReceiveContext, path string, mode fs.FileMode) error {
+func (n *nopReceiver) Chmod(ctx receivers.ReceiveContext, path string, mode uint64) error {
 	return nil
 }
 
@@ -125,7 +124,7 @@ func (n *nopReceiver) EnableVerity(ctx receivers.ReceiveContext, path string, al
 	return nil
 }
 
-func (n *nopReceiver) Fallocate(ctx receivers.ReceiveContext, path string, mode fs.FileMode, offset uint64, len uint64) error {
+func (n *nopReceiver) Fallocate(ctx receivers.ReceiveContext, path string, mode uint32, offset uint64, len uint64) error {
 	return nil
 }
 

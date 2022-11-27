@@ -20,8 +20,9 @@ import (
 	"path/filepath"
 
 	"github.com/spf13/cobra"
-	"github.com/tinyzimmer/btrsync/cmd/btrsync/cmd/snapmanager"
-	"github.com/tinyzimmer/btrsync/cmd/btrsync/cmd/syncmanager"
+
+	"github.com/tinyzimmer/btrsync/pkg/cmd/snapmanager"
+	"github.com/tinyzimmer/btrsync/pkg/cmd/syncmanager"
 )
 
 func NewPruneCommand() *cobra.Command {
@@ -118,6 +119,7 @@ func pruneMirrors() error {
 					Logger:              logger,
 					Verbosity:           conf.Verbosity,
 					MirrorPath:          mirror.Path,
+					MirrorFormat:        mirror.Format,
 				})
 				if err != nil {
 					return err

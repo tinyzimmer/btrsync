@@ -22,8 +22,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/tinyzimmer/btrsync/cmd/btrsync/cmd/snapmanager"
-	"github.com/tinyzimmer/btrsync/cmd/btrsync/cmd/syncmanager"
+	"github.com/tinyzimmer/btrsync/pkg/cmd/snapmanager"
+	"github.com/tinyzimmer/btrsync/pkg/cmd/syncmanager"
 )
 
 var (
@@ -130,17 +130,23 @@ func handleSync() error {
 					continue
 				}
 				manager, err := syncmanager.New(&syncmanager.Config{
-					SubvolumeIdentifier: subvol.GetSnapshotName(volumeName),
-					FullSubvolumePath:   sourcePath,
-					SnapshotName:        subvol.GetSnapshotName(volumeName),
-					SnapshotDirectory:   snapDir,
 					Logger:              logger,
 					Verbosity:           conf.Verbosity,
+					SubvolumeIdentifier: subvol.GetSnapshotName(volumeName),
+					FullSubvolumePath:   sourcePath,
+					SnapshotDirectory:   snapDir,
+					SnapshotName:        subvol.GetSnapshotName(volumeName),
 					MirrorPath:          mirror.Path,
+					MirrorFormat:        mirror.Format,
+					SSHUser:             conf.ResolveMirrorSSHUser(mirror.Name),
+					SSHPassword:         conf.ResolveMirrorSSHPassword(mirror.Name),
+					SSHKeyFile:          conf.ResolveMirrorSSHKeyFile(mirror.Name),
+					SSHHostKey:          conf.ResolveMirrorSSHHostKey(mirror.Name),
 				})
 				if err != nil {
 					return err
 				}
+				defer manager.Close()
 				if err := manager.Sync(context.Background()); err != nil {
 					return err
 				}

@@ -32,8 +32,8 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
-	"github.com/tinyzimmer/btrsync/cmd/btrsync/cmd/config"
 	"github.com/tinyzimmer/btrsync/pkg/btrfs"
+	"github.com/tinyzimmer/btrsync/pkg/cmd/config"
 )
 
 var logger = log.New(os.Stderr, "", log.LstdFlags)
