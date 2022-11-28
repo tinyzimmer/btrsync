@@ -20,6 +20,10 @@ It will manage snapshots and their mirrors according to its configuration or com
 
 **Cgo is used to generate certain constants and structures in the codebase, but not at compile time*
 
+Ideas in the pipeline:
+
+ [ ] S3 Support
+
 ## Command Usage
 
 Pre-compiled binaries for Linux can be found under the [releases](https://github.com/tinyzimmer/btrsync/releases).
