@@ -9,11 +9,11 @@ A library and tool for working with btrfs filesystems and snapshots in Golang.
 Beyond the native (no CGO*) bindings for working with BTRFS file systems provided in `pkg`, the `btrsync` utility included has the following features:
 
  * Manage and sync snapshots to local and remote locations
+ * Mirror to compressed files as well as both btrfs and non-btrfs volumes
  * Automatic volume and subvolume discovery for easy config generation
  * Time machine app for browsing local snapshots
- * Recovery of interrupted transfers by natively scanning the btrfs send streams
+ * Recovery of interrupted transfers by natively scanning the btrfs send streams and tracking offsets
  * Mount a btrfs sendfile as an in-memory FUSE filesystem (incremental sendfiles not supported yet)
- * More, but I'm too lazy to document right now
 
 Btrsync can be run either as a daemon process, cron job, or from the command line. 
 It will manage snapshots and their mirrors according to its configuration or command line flags.
@@ -148,13 +148,68 @@ func main() {
 }
 ```
 
-### Sending
+### Sending/Receiving
 
-_TODO: For now see the go.dev docs_
+The `sendstream` package implements the btrfs send/receive write format in pure Go.
+Streams can be constructed and read to raw using the package, or directly via the btrfs ioctls in the `btrfs` package.
 
-### Receiving
+Sending directly from a btrfs subvolume is done from the `btrfs` package while receiving methods are in the `receive` package.
+The `receivers` subpackage contains different implementations of "Receivers" that can be invoked for each command encountered in a stream.
+Receivers are just interfaces that expose methods for each command encountered, and custom ones can be made and used.
 
-_TODO: For now see the go.dev docs_
+```go
+package main
+
+import (
+	"fmt"
+
+	"github.com/tinyzimmer/btrsync/pkg/btrfs"
+	"github.com/tinyzimmer/btrsync/pkg/receive"
+	"github.com/tinyzimmer/btrsync/pkg/receive/receivers/local"
+)
+
+func main() {
+	// First create a read-only snapshot for sending
+	err := btrfs.CreateSnapshot("/mnt/btrfs/subvol", btrfs.WithSnapshotPath("/mnt/btrfs/subvol/snapshots/snapshot-1"))
+	if err != nil { 
+		panic(err)
+	}
+
+	// There are many options for where and how to send the data. 
+	// Below is an example of sending it directly to a pipe with encoded writes where applicable
+	opt, pipe, err := btrfs.SendToPipe()
+	if err != nil {
+		panic(err)
+	}
+	// Start the send in a goroutine
+	var wg sync.WaitGroup
+	errs := make(chan error, 1)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		errs <- btrfs.Send("/mnt/btrfs/subvol/snapshots/snapshot-1", opts, btrfs.SendCompressedData())
+	}()
+
+	// We can receive directly from the pipe above, in this example to another local btrfs volume
+	err = btrfs.ProcessSendStream(pipe, 
+		receive.HonorEndCommand(),
+		receive.To(local.New("/mnt/btrfs-2/subvol"))
+	)
+	if err != nil {
+		panic(err)
+	}
+
+	// The above will block until the stream errors or finishes, but we can use a wait group to be safe anyway
+	wg.Wait()
+	close(errs)
+	for _, err := range errs {
+		if err != nil {
+			panic(err)
+		}
+	}
+}
+```
+
 
 ## Contributing
 
