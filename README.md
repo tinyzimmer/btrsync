@@ -178,7 +178,7 @@ func main() {
 
 	// There are many options for where and how to send the data. 
 	// Below is an example of sending it directly to a pipe with encoded writes where applicable
-	opt, pipe, err := btrfs.SendToPipe()
+	opt, pipeOpt, err := btrfs.SendToPipe()
 	if err != nil {
 		panic(err)
 	}
@@ -190,7 +190,7 @@ func main() {
 		defer wg.Done()
 		errs <- btrfs.Send(
 			"/mnt/btrfs/subvol/snapshots/snapshot-1", 
-			opts, btrfs.SendCompressedData())
+			pipeOpt, btrfs.SendCompressedData())
 	}()
 
 	// We can receive directly from the pipe above, in this example to another local btrfs volume
