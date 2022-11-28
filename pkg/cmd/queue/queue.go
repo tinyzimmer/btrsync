@@ -89,13 +89,12 @@ func (c *ConcurrentQueue) Push(f QueueFunc) {
 // they will be executed.
 func (c *ConcurrentQueue) Wait() error {
 	c.waiting.Lock()
-	for {
-		select {
-		case err := <-c.errs:
-			return err
-		case <-c.ctx.Done():
-			return nil
-		}
+	c.wg.Wait()
+	select {
+	case err := <-c.errs:
+		return err
+	case <-c.ctx.Done():
+		return nil
 	}
 }
 

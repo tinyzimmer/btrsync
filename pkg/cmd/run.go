@@ -44,7 +44,9 @@ func NewRunCommand() *cobra.Command {
 
 	cmd.Flags().BoolVarP(&runDaemon, "daemon", "d", false, "Run the daemon process")
 	cmd.Flags().Var(&conf.Daemon.ScanInterval, "scan-interval", "The interval to scan for work to do when running as a daemon")
+	cmd.Flags().IntVar(&conf.Concurrency, "concurrency", 1, "The number of concurrent sync operations to run")
 	v.BindPFlag("daemon.scan_interval", cmd.Flags().Lookup("scan-interval"))
+	v.BindPFlag("concurrency", cmd.Flags().Lookup("concurrency"))
 	return cmd
 }
 

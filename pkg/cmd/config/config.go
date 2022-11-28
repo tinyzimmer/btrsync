@@ -30,6 +30,8 @@ import (
 type Config struct {
 	// Verbosity is the verbosity level.
 	Verbosity int `mapstructure:"verbosity" toml:"verbosity,omitempty"`
+	// Concurrency is the number of concurrent operations to perform. Defaults to 1.
+	Concurrency int `mapstructure:"concurrency" toml:"concurrency,omitempty"`
 	// SnapshotsDir is the directory where snapshots are stored. Defaults to "btrsync_snapshots"
 	// on the root of each volume.
 	SnapshotsDir string `mapstructure:"snapshots_dir" toml:"snapshots_dir,omitempty"`

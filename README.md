@@ -171,6 +171,7 @@ import (
 func main() {
 	// First create a read-only snapshot for sending
 	err := btrfs.CreateSnapshot("/mnt/btrfs/subvol", 
+		btrfs.WithReadOnlySnapshot(),
 		btrfs.WithSnapshotPath("/mnt/btrfs/subvol/snapshots/snapshot-1"))
 	if err != nil { 
 		panic(err)
