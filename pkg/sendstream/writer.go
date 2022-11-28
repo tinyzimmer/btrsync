@@ -23,15 +23,20 @@ import (
 
 var ErrHeaderAlreadySent = fmt.Errorf("header already sent")
 
+// Writer is a wrapper around io.Writer that writes btrfs send stream commands
+// to the receiving end.
 type Writer struct {
 	io.Writer
 	headerSent bool
 }
 
+// NewWriter returns a new Writer that writes to w.
 func NewWriter(w io.Writer) *Writer {
 	return &Writer{Writer: w}
 }
 
+// SendHeader writes the btrfs send stream header to the receiving end.
+// If the header was already sent, ErrHeaderAlreadySent is returned.
 func (w *Writer) SendHeader() error {
 	if w.headerSent {
 		return ErrHeaderAlreadySent
@@ -46,6 +51,9 @@ func (w *Writer) SendHeader() error {
 	return nil
 }
 
+// WriteCommand writes a command to the receiving end. If the header has not
+// been sent yet, it will be sent first. Commands can be created using the
+// New*Command functions.
 func (w *Writer) WriteCommand(cmd SendCommand, attrs CmdAttrs) error {
 	if !w.headerSent {
 		if err := w.SendHeader(); err != nil {
@@ -71,6 +79,17 @@ func (w *Writer) WriteCommand(cmd SendCommand, attrs CmdAttrs) error {
 		return err
 	}
 	return nil
+}
+
+// Finish sends the END command to the receiving end. If the header has not
+// been sent yet, it will be sent first.
+func (w *Writer) Finish() error {
+	if !w.headerSent {
+		if err := w.SendHeader(); err != nil {
+			return err
+		}
+	}
+	return w.WriteCommand(NewEndCommand())
 }
 
 func (w *Writer) write(data any) error { return binary.Write(w, binary.LittleEndian, data) }

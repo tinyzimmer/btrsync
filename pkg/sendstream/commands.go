@@ -189,104 +189,121 @@ func NewCmdAttrs() CmdAttrs {
 	return make(map[SendAttribute][]byte)
 }
 
-func NewSubvolCommandAttrs(path string, uu uuid.UUID, ctransid uint64) CmdAttrs {
+// NewSubvolCommand creates a new subvolume command. Most streams will need to begin with either
+// this or a snapshot command.
+func NewSubvolCommand(path string, uu uuid.UUID, ctransid uint64) (SendCommand, CmdAttrs) {
 	attrs := NewCmdAttrs()
 	attrs.SetPath(path)
 	attrs.SetUUID(uu)
 	attrs.SetCtransid(ctransid)
-	return attrs
+	return BTRFS_SEND_C_SUBVOL, attrs
 }
 
-func NewSnapshotCommandAttrs(path string, uu uuid.UUID, ctransid uint64, cloneUU uuid.UUID, cloneCtransid uint64) CmdAttrs {
+// NewSnapshotCommand creates a new snapshot command. Most streams will need to begin with either
+// this or a subvolume command.
+func NewSnapshotCommand(path string, uu uuid.UUID, ctransid uint64, cloneUU uuid.UUID, cloneCtransid uint64) (SendCommand, CmdAttrs) {
 	attrs := NewCmdAttrs()
 	attrs.SetPath(path)
 	attrs.SetUUID(uu)
 	attrs.SetCtransid(ctransid)
 	attrs.SetCloneUUID(cloneUU)
 	attrs.SetCloneCtransid(cloneCtransid)
-	return attrs
+	return BTRFS_SEND_C_SNAPSHOT, attrs
 }
 
-func NewMkfileCommandAttrs(path string, ino uint64) CmdAttrs {
+// NewMkfileCommand creates a new mkfile command.
+func NewMkfileCommand(path string, ino uint64) (SendCommand, CmdAttrs) {
 	attrs := NewCmdAttrs()
 	attrs.SetPath(path)
 	attrs.SetIno(ino)
-	return attrs
+	return BTRFS_SEND_C_MKFILE, attrs
 }
 
-func NewMkdirCommandAttrs(path string, ino uint64) CmdAttrs {
+// NewMkdirCommand creates a new mkdir command.
+func NewMkdirCommand(path string, ino uint64) (SendCommand, CmdAttrs) {
 	attrs := NewCmdAttrs()
 	attrs.SetPath(path)
 	attrs.SetIno(ino)
-	return attrs
+	return BTRFS_SEND_C_MKDIR, attrs
 }
 
-func NewMknodCommandAttrs(path string, ino uint64, mode uint32, rdev uint64) CmdAttrs {
+// NewMknodCommand creates a new mknod command.
+func NewMknodCommand(path string, ino uint64, mode uint32, rdev uint64) (SendCommand, CmdAttrs) {
 	attrs := NewCmdAttrs()
 	attrs.SetPath(path)
 	attrs.SetIno(ino)
 	attrs.SetMode32(mode)
 	attrs.SetRdev(rdev)
-	return attrs
+	return BTRFS_SEND_C_MKNOD, attrs
 }
 
-func NewMkfifoCommandAttrs(path string, ino uint64) CmdAttrs {
+// NewMkfifoCommand creates a new mkfifo command.
+func NewMkfifoCommand(path string, ino uint64) (SendCommand, CmdAttrs) {
 	attrs := NewCmdAttrs()
 	attrs.SetPath(path)
 	attrs.SetIno(ino)
-	return attrs
+	return BTRFS_SEND_C_MKFIFO, attrs
 }
 
-func NewMksockCommandAttrs(path string, ino uint64) CmdAttrs {
+// NewMksockCommand creates a new mksock command.
+func NewMksockCommand(path string, ino uint64) (SendCommand, CmdAttrs) {
 	attrs := NewCmdAttrs()
 	attrs.SetPath(path)
 	attrs.SetIno(ino)
-	return attrs
+	return BTRFS_SEND_C_MKSOCK, attrs
 }
 
-func NewSymlinkCommandAttrs(path, link string, ino uint64) CmdAttrs {
+// NewSymlinkCommand creates a new symlink command.
+func NewSymlinkCommand(path, link string, ino uint64) (SendCommand, CmdAttrs) {
 	attrs := NewCmdAttrs()
 	attrs.SetPath(path)
 	attrs.SetIno(ino)
 	attrs.SetPathLink(link)
-	return attrs
+	return BTRFS_SEND_C_SYMLINK, attrs
 }
 
-func NewRenameCommandAttrs(path, pathTo string) CmdAttrs {
+// NewRenameCommand creates a new rename command.
+func NewRenameCommand(path, pathTo string) (SendCommand, CmdAttrs) {
 	attrs := NewCmdAttrs()
 	attrs.SetPath(path)
 	attrs.SetPathTo(pathTo)
-	return attrs
+	return BTRFS_SEND_C_RENAME, attrs
 }
 
-func NewLinkCommandAttrs(path, link string) CmdAttrs {
+// NewLinkCommand creates a new link command.
+func NewLinkCommand(path, link string) (SendCommand, CmdAttrs) {
 	attrs := NewCmdAttrs()
 	attrs.SetPath(path)
 	attrs.SetPathLink(link)
-	return attrs
+	return BTRFS_SEND_C_LINK, attrs
 }
 
-func NewUnlinkCommandAttrs(path string) CmdAttrs {
+// NewUnlinkCommand creates a new unlink command.
+func NewUnlinkCommand(path string) (SendCommand, CmdAttrs) {
 	attrs := NewCmdAttrs()
 	attrs.SetPath(path)
-	return attrs
+	return BTRFS_SEND_C_UNLINK, attrs
 }
 
-func NewRmdirCommandAttrs(path string) CmdAttrs {
+// NewRmdirCommand creates a new rmdir command.
+func NewRmdirCommand(path string) (SendCommand, CmdAttrs) {
 	attrs := NewCmdAttrs()
 	attrs.SetPath(path)
-	return attrs
+	return BTRFS_SEND_C_RMDIR, attrs
 }
 
-func NewWriteCommandAttrs(path string, offset uint64, data []byte) CmdAttrs {
+// NewWriteCommand creates a new write command.
+func NewWriteCommand(path string, offset uint64, data []byte) (SendCommand, CmdAttrs) {
 	attrs := NewCmdAttrs()
 	attrs.SetPath(path)
 	attrs.SetFileOffset(offset)
 	attrs.SetData(data)
-	return attrs
+	return BTRFS_SEND_C_WRITE, attrs
 }
 
-func NewEncodedWriteCommandAttrs(path string, op *btrfs.EncodedWriteOp) CmdAttrs {
+// NewEncodedWriteCommand creates a new encoded write command. This will only work on target
+// btrfs filesystems that support compression.
+func NewEncodedWriteCommand(path string, op *btrfs.EncodedWriteOp) (SendCommand, CmdAttrs) {
 	attrs := NewCmdAttrs()
 	attrs.SetPath(path)
 	attrs.SetFileOffset(op.Offset)
@@ -296,10 +313,13 @@ func NewEncodedWriteCommandAttrs(path string, op *btrfs.EncodedWriteOp) CmdAttrs
 	attrs.SetUnencodedOffset(op.UnencodedOffset)
 	attrs.SetCompressionType(op.Compression)
 	attrs.SetEncryptionType(op.Encryption)
-	return attrs
+	return BTRFS_SEND_C_ENCODED_WRITE, attrs
 }
 
-func NewCloneCommandAttrs(path string, offset uint64, cloneLen uint64, cloneUUID uuid.UUID, cloneCtransid uint64, clonePath string, cloneOffset uint64) CmdAttrs {
+// NewCloneCommand creates a new clone command.
+func NewCloneCommand(
+	path string, offset uint64, cloneLen uint64, cloneUUID uuid.UUID, cloneCtransid uint64, clonePath string, cloneOffset uint64,
+) (SendCommand, CmdAttrs) {
 	attrs := NewCmdAttrs()
 	attrs.SetPath(path)
 	attrs.SetFileOffset(offset)
@@ -308,87 +328,102 @@ func NewCloneCommandAttrs(path string, offset uint64, cloneLen uint64, cloneUUID
 	attrs.SetCloneCtransid(cloneCtransid)
 	attrs.SetClonePath(clonePath)
 	attrs.SetCloneOffset(cloneOffset)
-	return attrs
+	return BTRFS_SEND_C_CLONE, attrs
 }
 
-func NewSetXattrCommandAttrs(path string, name string, data []byte) CmdAttrs {
+// NewSetXattrCommand creates a new set-xattr command.
+func NewSetXattrCommand(path string, name string, data []byte) (SendCommand, CmdAttrs) {
 	attrs := NewCmdAttrs()
 	attrs.SetPath(path)
 	attrs.SetXattrName(name)
 	attrs.SetXattrData(data)
-	return attrs
+	return BTRFS_SEND_C_SET_XATTR, attrs
 }
 
-func NewRemoveXattrCommandAttrs(path string, name string) CmdAttrs {
+// NewRemoveXattrCommand creates a new remove-xattr command.
+func NewRemoveXattrCommand(path string, name string) (SendCommand, CmdAttrs) {
 	attrs := NewCmdAttrs()
 	attrs.SetPath(path)
 	attrs.SetXattrName(name)
-	return attrs
+	return BTRFS_SEND_C_REMOVE_XATTR, attrs
 }
 
-func NewTruncateCommandAttrs(path string, size uint64) CmdAttrs {
+// NewTruncateCommand creates a new truncate command.
+func NewTruncateCommand(path string, size uint64) (SendCommand, CmdAttrs) {
 	attrs := NewCmdAttrs()
 	attrs.SetPath(path)
 	attrs.SetSize(size)
-	return attrs
+	return BTRFS_SEND_C_TRUNCATE, attrs
 }
 
-func NewChmodCommandAttrs(path string, mode uint64) CmdAttrs {
+// NewChmodCommand creates a new chmod command.
+func NewChmodCommand(path string, mode uint64) (SendCommand, CmdAttrs) {
 	attrs := NewCmdAttrs()
 	attrs.SetPath(path)
 	attrs.SetMode64(mode)
-	return attrs
+	return BTRFS_SEND_C_CHMOD, attrs
 }
 
-func NewChownCommandAttrs(path string, uid uint64, gid uint64) CmdAttrs {
+// NewChownCommand creates a new chown command.
+func NewChownCommand(path string, uid uint64, gid uint64) (SendCommand, CmdAttrs) {
 	attrs := NewCmdAttrs()
 	attrs.SetPath(path)
 	attrs.SetUid(uid)
 	attrs.SetGid(gid)
-	return attrs
+	return BTRFS_SEND_C_CHOWN, attrs
 }
 
-func NewUtimesCommandAttrs(path string, atime, mtime, ctime time.Time) CmdAttrs {
+// NewUtimesCommand creates a new utimes command.
+func NewUtimesCommand(path string, atime, mtime, ctime time.Time) (SendCommand, CmdAttrs) {
 	attrs := NewCmdAttrs()
 	attrs.SetPath(path)
 	attrs.SetAtime(atime)
 	attrs.SetMtime(mtime)
 	attrs.SetCtime(ctime)
-	return attrs
+	return BTRFS_SEND_C_UTIMES, attrs
 }
 
-func NewUpdateExtentCommandAttrs(path string, offset uint64, size uint64) CmdAttrs {
+// NewUpdateExtentCommand creates a new update extent command.
+func NewUpdateExtentCommand(path string, offset uint64, size uint64) (SendCommand, CmdAttrs) {
 	attrs := NewCmdAttrs()
 	attrs.SetPath(path)
 	attrs.SetFileOffset(offset)
 	attrs.SetSize(size)
-	return attrs
+	return BTRFS_SEND_C_UPDATE_EXTENT, attrs
 }
 
-func NewEnableVerityCommandAttrs(path string, alg uint8, blockSize uint32, salt []byte, sig []byte) CmdAttrs {
+// NewEnableVerityCommand creates a new enable verity command.
+func NewEnableVerityCommand(path string, alg uint8, blockSize uint32, salt []byte, sig []byte) (SendCommand, CmdAttrs) {
 	attrs := NewCmdAttrs()
 	attrs.SetPath(path)
 	attrs.SetVerityAlgorithm(alg)
 	attrs.SetVerityBlockSize(blockSize)
 	attrs.SetVeritySalt(salt)
 	attrs.SetVeritySig(sig)
-	return attrs
+	return BTRFS_SEND_C_ENABLE_VERITY, attrs
 }
 
-func NewFallocateCommandAttrs(path string, mode uint32, offset uint64, size uint64) CmdAttrs {
+// NewFallocateCommand creates a new fallocate command.
+func NewFallocateCommand(path string, mode uint32, offset uint64, size uint64) (SendCommand, CmdAttrs) {
 	attrs := NewCmdAttrs()
 	attrs.SetPath(path)
 	attrs.SetFallocateMode(mode)
 	attrs.SetFileOffset(offset)
 	attrs.SetSize(size)
-	return attrs
+	return BTRFS_SEND_C_FALLOCATE, attrs
 }
 
-func NewFileAttrCommandAttrs(path string, attr uint32) CmdAttrs {
+// NewFileAttrCommand creates a new file-attr command.
+func NewFileAttrCommand(path string, attr uint32) (SendCommand, CmdAttrs) {
 	attrs := NewCmdAttrs()
 	attrs.SetPath(path)
 	attrs.SetFileAttr(attr)
-	return attrs
+	return BTRFS_SEND_C_FILEATTR, attrs
+}
+
+// NewEndCommand creates a new end command.
+func NewEndCommand() (SendCommand, CmdAttrs) {
+	return BTRFS_SEND_C_END, NewCmdAttrs()
 }
 
 // BinarySize returns the encoded length of the command attributes
