@@ -202,7 +202,9 @@ func main() {
 		panic(err)
 	}
 
-	// The above will block until the stream errors or finishes, but we can use a wait group to be safe anyway
+	// The above will block until the stream errors or finishes, 
+	// but we can use a wait group to be safe anyway or if we wanted to
+	// also run the receive in a goroutine.
 	wg.Wait()
 	close(errs)
 	for _, err := range errs {
