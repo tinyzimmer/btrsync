@@ -8,6 +8,7 @@ concurrency = 1
 
 # The global directory name to use for snapshots. If not an absolute path
 # the directory will be created under the root directory of the btrfs volume.
+# This can be overridden on the volume and subvolume level.
 snapshots_dir = "btrsync_snapshots"
 
 # The retention settings to apply to snapshots both locally and on mirrors.
@@ -34,7 +35,7 @@ ssh_key_identity_file = ""
 ssh_host_key  = ""          # If left blank, host key verification is disabled
 
 # Volumes represent a btrfs mount point on the system. Each volume can have
-# multiple subvolumes and mirrors as wekll as their own retention settings.
+# multiple subvolumes and mirrors as well as their own retention settings.
 [[volumes]]
 # The name for volumes and subvolumes is unique and defaults to the base path.
 # It is used to identify volumes and subvolumes in the logs and snapshots.
