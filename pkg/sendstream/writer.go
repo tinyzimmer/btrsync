@@ -81,9 +81,11 @@ func (w *Writer) WriteCommand(cmd SendCommand, attrs CmdAttrs) error {
 	return nil
 }
 
-// Finish sends the END command to the receiving end. If the header has not
-// been sent yet, it will be sent first.
-func (w *Writer) Finish() error {
+// End sends the END command to the receiving end. If the header has not
+// been sent yet, it will be sent first. This does not block further commands
+// from being sent to the receiving end, since it is possible to send multiple
+// streams to the same receiving end.
+func (w *Writer) End() error {
 	if !w.headerSent {
 		if err := w.SendHeader(); err != nil {
 			return err
