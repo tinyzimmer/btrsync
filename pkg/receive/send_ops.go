@@ -454,7 +454,7 @@ func processFileattr(ctx *receiveCtx, attrs sendstream.CmdAttrs) error {
 		return fmt.Errorf("processFileattr: %w", err)
 	}
 	path := attrs.GetPath()
-	fileattr := attrs.GetFileattr()
+	fileattr := attrs.GetFileAttr()
 	ctx.LogVerbose(2, "receiving fileattr %q fileattr=%d", path, fileattr)
 	return ctx.receiver.Fileattr(ctx, path, fileattr)
 }

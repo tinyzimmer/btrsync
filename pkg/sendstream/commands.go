@@ -18,7 +18,6 @@ package sendstream
 import (
 	"bytes"
 	"encoding/binary"
-	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -185,10 +184,215 @@ func (c CmdHeader) IsZero() bool {
 
 type CmdAttrs map[SendAttribute][]byte
 
+// NewCmdAttrs allocates a new CmdAttrs map.
 func NewCmdAttrs() CmdAttrs {
 	return make(map[SendAttribute][]byte)
 }
 
+func NewSubvolCommandAttrs(path string, uu uuid.UUID, ctransid uint64) CmdAttrs {
+	attrs := NewCmdAttrs()
+	attrs.SetPath(path)
+	attrs.SetUUID(uu)
+	attrs.SetCtransid(ctransid)
+	return attrs
+}
+
+func NewSnapshotCommandAttrs(path string, uu uuid.UUID, ctransid uint64, cloneUU uuid.UUID, cloneCtransid uint64) CmdAttrs {
+	attrs := NewCmdAttrs()
+	attrs.SetPath(path)
+	attrs.SetUUID(uu)
+	attrs.SetCtransid(ctransid)
+	attrs.SetCloneUUID(cloneUU)
+	attrs.SetCloneCtransid(cloneCtransid)
+	return attrs
+}
+
+func NewMkfileCommandAttrs(path string, ino uint64) CmdAttrs {
+	attrs := NewCmdAttrs()
+	attrs.SetPath(path)
+	attrs.SetIno(ino)
+	return attrs
+}
+
+func NewMkdirCommandAttrs(path string, ino uint64) CmdAttrs {
+	attrs := NewCmdAttrs()
+	attrs.SetPath(path)
+	attrs.SetIno(ino)
+	return attrs
+}
+
+func NewMknodCommandAttrs(path string, ino uint64, mode uint32, rdev uint64) CmdAttrs {
+	attrs := NewCmdAttrs()
+	attrs.SetPath(path)
+	attrs.SetIno(ino)
+	attrs.SetMode32(mode)
+	attrs.SetRdev(rdev)
+	return attrs
+}
+
+func NewMkfifoCommandAttrs(path string, ino uint64) CmdAttrs {
+	attrs := NewCmdAttrs()
+	attrs.SetPath(path)
+	attrs.SetIno(ino)
+	return attrs
+}
+
+func NewMksockCommandAttrs(path string, ino uint64) CmdAttrs {
+	attrs := NewCmdAttrs()
+	attrs.SetPath(path)
+	attrs.SetIno(ino)
+	return attrs
+}
+
+func NewSymlinkCommandAttrs(path, link string, ino uint64) CmdAttrs {
+	attrs := NewCmdAttrs()
+	attrs.SetPath(path)
+	attrs.SetIno(ino)
+	attrs.SetPathLink(link)
+	return attrs
+}
+
+func NewRenameCommandAttrs(path, pathTo string) CmdAttrs {
+	attrs := NewCmdAttrs()
+	attrs.SetPath(path)
+	attrs.SetPathTo(pathTo)
+	return attrs
+}
+
+func NewLinkCommandAttrs(path, link string) CmdAttrs {
+	attrs := NewCmdAttrs()
+	attrs.SetPath(path)
+	attrs.SetPathLink(link)
+	return attrs
+}
+
+func NewUnlinkCommandAttrs(path string) CmdAttrs {
+	attrs := NewCmdAttrs()
+	attrs.SetPath(path)
+	return attrs
+}
+
+func NewRmdirCommandAttrs(path string) CmdAttrs {
+	attrs := NewCmdAttrs()
+	attrs.SetPath(path)
+	return attrs
+}
+
+func NewWriteCommandAttrs(path string, offset uint64, data []byte) CmdAttrs {
+	attrs := NewCmdAttrs()
+	attrs.SetPath(path)
+	attrs.SetFileOffset(offset)
+	attrs.SetData(data)
+	return attrs
+}
+
+func NewEncodedWriteCommandAttrs(path string, op *btrfs.EncodedWriteOp) CmdAttrs {
+	attrs := NewCmdAttrs()
+	attrs.SetPath(path)
+	attrs.SetFileOffset(op.Offset)
+	attrs.SetData(op.Data)
+	attrs.SetUnencodedFileLen(op.UnencodedFileLength)
+	attrs.SetUnencodedLen(op.UnencodedLength)
+	attrs.SetUnencodedOffset(op.UnencodedOffset)
+	attrs.SetCompressionType(op.Compression)
+	attrs.SetEncryptionType(op.Encryption)
+	return attrs
+}
+
+func NewCloneCommandAttrs(path string, offset uint64, cloneLen uint64, cloneUUID uuid.UUID, cloneCtransid uint64, clonePath string, cloneOffset uint64) CmdAttrs {
+	attrs := NewCmdAttrs()
+	attrs.SetPath(path)
+	attrs.SetFileOffset(offset)
+	attrs.SetCloneLen(cloneLen)
+	attrs.SetCloneUUID(cloneUUID)
+	attrs.SetCloneCtransid(cloneCtransid)
+	attrs.SetClonePath(clonePath)
+	attrs.SetCloneOffset(cloneOffset)
+	return attrs
+}
+
+func NewSetXattrCommandAttrs(path string, name string, data []byte) CmdAttrs {
+	attrs := NewCmdAttrs()
+	attrs.SetPath(path)
+	attrs.SetXattrName(name)
+	attrs.SetXattrData(data)
+	return attrs
+}
+
+func NewRemoveXattrCommandAttrs(path string, name string) CmdAttrs {
+	attrs := NewCmdAttrs()
+	attrs.SetPath(path)
+	attrs.SetXattrName(name)
+	return attrs
+}
+
+func NewTruncateCommandAttrs(path string, size uint64) CmdAttrs {
+	attrs := NewCmdAttrs()
+	attrs.SetPath(path)
+	attrs.SetSize(size)
+	return attrs
+}
+
+func NewChmodCommandAttrs(path string, mode uint64) CmdAttrs {
+	attrs := NewCmdAttrs()
+	attrs.SetPath(path)
+	attrs.SetMode64(mode)
+	return attrs
+}
+
+func NewChownCommandAttrs(path string, uid uint64, gid uint64) CmdAttrs {
+	attrs := NewCmdAttrs()
+	attrs.SetPath(path)
+	attrs.SetUid(uid)
+	attrs.SetGid(gid)
+	return attrs
+}
+
+func NewUtimesCommandAttrs(path string, atime, mtime, ctime time.Time) CmdAttrs {
+	attrs := NewCmdAttrs()
+	attrs.SetPath(path)
+	attrs.SetAtime(atime)
+	attrs.SetMtime(mtime)
+	attrs.SetCtime(ctime)
+	return attrs
+}
+
+func NewUpdateExtentCommandAttrs(path string, offset uint64, size uint64) CmdAttrs {
+	attrs := NewCmdAttrs()
+	attrs.SetPath(path)
+	attrs.SetFileOffset(offset)
+	attrs.SetSize(size)
+	return attrs
+}
+
+func NewEnableVerityCommandAttrs(path string, alg uint8, blockSize uint32, salt []byte, sig []byte) CmdAttrs {
+	attrs := NewCmdAttrs()
+	attrs.SetPath(path)
+	attrs.SetVerityAlgorithm(alg)
+	attrs.SetVerityBlockSize(blockSize)
+	attrs.SetVeritySalt(salt)
+	attrs.SetVeritySig(sig)
+	return attrs
+}
+
+func NewFallocateCommandAttrs(path string, mode uint32, offset uint64, size uint64) CmdAttrs {
+	attrs := NewCmdAttrs()
+	attrs.SetPath(path)
+	attrs.SetFallocateMode(mode)
+	attrs.SetFileOffset(offset)
+	attrs.SetSize(size)
+	return attrs
+}
+
+func NewFileAttrCommandAttrs(path string, attr uint32) CmdAttrs {
+	attrs := NewCmdAttrs()
+	attrs.SetPath(path)
+	attrs.SetFileAttr(attr)
+	return attrs
+}
+
+// BinarySize returns the encoded length of the command attributes
+// to be included in a command header.
 func (c CmdAttrs) BinarySize() uint32 {
 	var size uint32
 	for k, v := range c {
@@ -205,9 +409,11 @@ func (c CmdAttrs) BinarySize() uint32 {
 	return size
 }
 
+// Encode encodes the command attributes into a byte slice.
 func (c CmdAttrs) Encode() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	for k, v := range c {
+		// Data is always sent last
 		if k == BTRFS_SEND_A_DATA {
 			continue
 		}
@@ -221,6 +427,7 @@ func (c CmdAttrs) Encode() ([]byte, error) {
 			return nil, err
 		}
 	}
+	// Send data if any
 	if data, ok := c[BTRFS_SEND_A_DATA]; ok {
 		if err := binary.Write(buf, binary.LittleEndian, BTRFS_SEND_A_DATA); err != nil {
 			return nil, err
@@ -230,21 +437,6 @@ func (c CmdAttrs) Encode() ([]byte, error) {
 		}
 	}
 	return buf.Bytes(), nil
-}
-
-func (c CmdAttrs) GetSubvolInfo(cmd SendCommand) (*ReceivingSubvolume, error) {
-	if cmd != BTRFS_SEND_C_SUBVOL && cmd != BTRFS_SEND_C_SNAPSHOT {
-		return nil, fmt.Errorf("not a subvol or snapshot command")
-	}
-	uuid, err := c.GetUUID()
-	if err != nil {
-		return nil, err
-	}
-	return &ReceivingSubvolume{
-		Path:     c.GetPath(),
-		UUID:     uuid,
-		Ctransid: c.GetCtransid(),
-	}, nil
 }
 
 func (c CmdAttrs) GetData() []byte {
@@ -615,11 +807,11 @@ func (c CmdAttrs) SetFallocateMode(mode uint32) {
 	c[BTRFS_SEND_A_FALLOCATE_MODE] = bb
 }
 
-func (c CmdAttrs) GetFileattr() uint32 {
+func (c CmdAttrs) GetFileAttr() uint32 {
 	return binary.LittleEndian.Uint32(c[BTRFS_SEND_A_FILEATTR])
 }
 
-func (c CmdAttrs) SetFileattr(fileattr uint32) {
+func (c CmdAttrs) SetFileAttr(fileattr uint32) {
 	bb := make([]byte, 4)
 	binary.LittleEndian.PutUint32(bb, fileattr)
 	c[BTRFS_SEND_A_FILEATTR] = bb

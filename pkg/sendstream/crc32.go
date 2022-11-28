@@ -19,7 +19,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"hash/crc32"
 )
 
 func validateCrc32(hdr CmdHeader, data []byte) error {
@@ -55,7 +54,7 @@ func btrfsCrc32c(seed uint32, data []byte) uint32 {
 	return crc
 }
 
-var crc32q = crc32.Table{
+var crc32q = [256]uint32{
 	0x00000000, 0xF26B8303, 0xE13B70F7, 0x1350F3F4,
 	0xC79A971F, 0x35F1141C, 0x26A1E7E8, 0xD4CA64EB,
 	0x8AD958CF, 0x78B2DBCC, 0x6BE22838, 0x9989AB3B,
