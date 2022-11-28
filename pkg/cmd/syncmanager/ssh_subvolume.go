@@ -285,7 +285,7 @@ func (sm *sshSubvolumeManager) listRemoteSnapshots(ctx context.Context) (map[str
 	if err != nil {
 		return nil, err
 	}
-	cmd := fmt.Sprintf("btrfs subvol list -osR %q", parentdir)
+	cmd := fmt.Sprintf("btrfs subvol list -orR %q", parentdir)
 	sm.config.LogVerbose(4, "Running command %q on remote host\n", cmd)
 	out, err := sess.CombinedOutput(cmd)
 	if err != nil {
@@ -299,11 +299,11 @@ func (sm *sshSubvolumeManager) listRemoteSnapshots(ctx context.Context) (map[str
 			continue
 		}
 		parts := strings.Fields(line)
-		if len(parts) < 16 {
+		if len(parts) < 11 {
 			return nil, fmt.Errorf("unexpected output from btrfs subvol list: %s", line)
 		}
-		name := filepath.Base(parts[15])
-		uustr := parts[13]
+		name := filepath.Base(parts[10])
+		uustr := parts[8]
 		uuid, err := uuid.Parse(uustr)
 		if err != nil {
 			return nil, fmt.Errorf("error parsing UUID %q: %w", uustr, err)

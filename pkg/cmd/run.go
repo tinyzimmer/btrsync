@@ -57,7 +57,22 @@ func run(cmd *cobra.Command, args []string) error {
 	if err := handleSync(); err != nil {
 		return err
 	}
-	logLevel(0, "Done.")
+	logLevel(0, "Finished sync operations.")
+	return nil
+}
+
+func daemon(cmd *cobra.Command, args []string) error {
+	logLevel(0, "Starting daemon process with %s scan interval...", conf.Daemon.ScanInterval)
+	if err := run(cmd, args); err != nil {
+		logLevel(0, "Error running sync: %s", err)
+	}
+	t := time.NewTicker(time.Duration(conf.Daemon.ScanInterval))
+	for range t.C {
+		if err := run(cmd, args); err != nil {
+			logLevel(0, "Error running sync: %s", err)
+			logLevel(0, "Will retry on next scan interval")
+		}
+	}
 	return nil
 }
 
@@ -154,21 +169,6 @@ func handleSync() error {
 					return err
 				}
 			}
-		}
-	}
-	return nil
-}
-
-func daemon(cmd *cobra.Command, args []string) error {
-	logLevel(0, "Starting daemon process with %s scan interval...", conf.Daemon.ScanInterval)
-	if err := run(cmd, args); err != nil {
-		logLevel(0, "Error running sync: %s", err)
-	}
-	t := time.NewTicker(time.Duration(conf.Daemon.ScanInterval))
-	for range t.C {
-		if err := run(cmd, args); err != nil {
-			logLevel(0, "Error running sync: %s", err)
-			logLevel(0, "Will retry on next scan interval")
 		}
 	}
 	return nil
