@@ -1,0 +1,74 @@
+# Log verbosity level (0-5)
+verbosity = 0
+# How many sync operations to run at a time (not yet finished)
+concurrency = 1
+
+# Below are configurations for snapshot operations. All the below configurations
+# can be overridden on both the volume and subvolume level.
+
+# The global directory name to use for snapshots. If not an absolute path
+# the directory will be created under the root directory of the btrfs volume.
+snapshots_dir = "btrsync_snapshots"
+
+# The retention settings to apply to snapshots both locally and on mirrors.
+# Snapshots are taken for each snapshot_interval. All snapshots are retained
+# for the snapshot_min_retention period. After that, snapshots are retained
+# for the snapshot_retention period according to the snapshot_retention_interval.
+#
+# For example, given the settings below:
+snapshot_interval = "1h"              # Hourly snapshots
+snapshot_min_retention = "1d"         # Retain at least 1 day of snapshots
+snapshot_retention = "7d"             # Retain 1 week of snapshots
+snapshot_retention_interval = "1d"    # Retain 1 snapshot per day
+
+# The time format that is applied to the end of snapshot names. This follows
+# the go time format. See https://golang.org/pkg/time/#Time.Format
+time_format = "2006-01-02_15-04-05"
+
+# Settings for SSH connections. These can be specified globally or underneath
+# a specific mirror. If specified globally, they will be used for all mirrors
+# that don't specify their own settings.
+ssh_user = "root"
+ssh_password = ""
+ssh_key_identity_file = ""
+ssh_host_key  = ""          # If left blank, host key verification is disabled
+
+# Volumes represent a btrfs mount point on the system. Each volume can have
+# multiple subvolumes and mirrors as wekll as their own retention settings.
+[[volumes]]
+# The name for volumes and subvolumes is unique and defaults to the base path.
+# It is used to identify volumes and subvolumes in the logs and snapshots.
+name = "home"
+path = "/home"
+mirrors = ["remote", "local"]
+
+    # Subvolumes are subdirectories of the volume path. They can have their
+    # own retention settings and mirrors.
+    [[volumes.subvolumes]]
+    path = "user"
+
+# An example of a local mirror. This is the default mirror type.
+[[mirrors]]
+name = "local"
+path = "/mnt/btrfs-backups"
+
+# An example of a remote mirror over SSH
+[[mirrors]]
+name = "remote"
+path = "ssh://192.168.122.30/mnt/btrfs-backups"
+ssh_key_identity_file = "/home/user/.ssh/id_rsa"
+
+# An example of a mirror that stores snapshots as compressed files.
+[[mirrors]]
+name = "local-compressed"
+path = "/mnt/btrfs-backups-compressed"
+format = "zstd"    # The compression format to use.
+                   # Options are "gzip", "lzw", "zlib", and "zstd".
+
+# An example of a mirror that stores snapshots in directory format.
+# This is useful for non-btrfs targets, however snapshots are not
+# stored atomically.
+[[mirrors]]
+name = "local-dir"
+path = "/mnt/btrfs-backups-dir"
+format = "directory"
