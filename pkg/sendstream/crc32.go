@@ -23,21 +23,28 @@ import (
 )
 
 func validateCrc32(hdr CmdHeader, data []byte) error {
-	var buf bytes.Buffer
 	headerCrc := hdr.Crc
 	// Crc is set to 0 when computing during send
 	hdr.Crc = 0
-	if err := binary.Write(&buf, binary.LittleEndian, &hdr); err != nil {
+	sum, err := calculateCrc32(hdr, data)
+	if err != nil {
 		return err
 	}
-	if _, err := buf.Write(data); err != nil {
-		return err
-	}
-	sum := btrfsCrc32c(0, buf.Bytes())
 	if headerCrc != sum {
 		return fmt.Errorf("%w: computed(%d) != stream(%d)", ErrInvalidCommandChecksum, sum, headerCrc)
 	}
 	return nil
+}
+
+func calculateCrc32(hdr CmdHeader, data []byte) (uint32, error) {
+	var buf bytes.Buffer
+	if err := binary.Write(&buf, binary.LittleEndian, &hdr); err != nil {
+		return 0, err
+	}
+	if _, err := buf.Write(data); err != nil {
+		return 0, err
+	}
+	return btrfsCrc32c(0, buf.Bytes()), nil
 }
 
 func btrfsCrc32c(seed uint32, data []byte) uint32 {

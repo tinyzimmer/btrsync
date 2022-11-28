@@ -30,6 +30,14 @@ const (
 	BTRFS_SEND_STREAM_VERSION uint32 = 2
 )
 
+var (
+	BTRFS_SEND_STREAM_MAGIC_ENCODED [13]byte = func() [13]byte {
+		var arr [13]byte
+		copy(arr[:], BTRFS_SEND_STREAM_MAGIC)
+		return arr
+	}()
+)
+
 // Send commands
 //go:generate stringer -type=SendCommand
 
@@ -177,6 +185,53 @@ func (c CmdHeader) IsZero() bool {
 
 type CmdAttrs map[SendAttribute][]byte
 
+func NewCmdAttrs() CmdAttrs {
+	return make(map[SendAttribute][]byte)
+}
+
+func (c CmdAttrs) BinarySize() uint32 {
+	var size uint32
+	for k, v := range c {
+		// The length of the attribute
+		size += uint32(binary.Size(k))
+		if k != BTRFS_SEND_A_DATA {
+			// If not sending data, the length of the attribute value
+			// is included in the size
+			size += uint32(binary.Size(uint16(len(v))))
+		}
+		// The length of the data itself
+		size += uint32(len(v))
+	}
+	return size
+}
+
+func (c CmdAttrs) Encode() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	for k, v := range c {
+		if k == BTRFS_SEND_A_DATA {
+			continue
+		}
+		if err := binary.Write(buf, binary.LittleEndian, k); err != nil {
+			return nil, err
+		}
+		if err := binary.Write(buf, binary.LittleEndian, uint16(len(v))); err != nil {
+			return nil, err
+		}
+		if _, err := buf.Write(v); err != nil {
+			return nil, err
+		}
+	}
+	if data, ok := c[BTRFS_SEND_A_DATA]; ok {
+		if err := binary.Write(buf, binary.LittleEndian, BTRFS_SEND_A_DATA); err != nil {
+			return nil, err
+		}
+		if _, err := buf.Write(data); err != nil {
+			return nil, err
+		}
+	}
+	return buf.Bytes(), nil
+}
+
 func (c CmdAttrs) GetSubvolInfo(cmd SendCommand) (*ReceivingSubvolume, error) {
 	if cmd != BTRFS_SEND_C_SUBVOL && cmd != BTRFS_SEND_C_SNAPSHOT {
 		return nil, fmt.Errorf("not a subvol or snapshot command")
@@ -196,108 +251,252 @@ func (c CmdAttrs) GetData() []byte {
 	return c[BTRFS_SEND_A_DATA]
 }
 
+func (c CmdAttrs) SetData(bb []byte) {
+	c[BTRFS_SEND_A_DATA] = bb
+}
+
 func (c CmdAttrs) GetFileOffset() uint64 {
 	return binary.LittleEndian.Uint64(c[BTRFS_SEND_A_FILE_OFFSET])
+}
+
+func (c CmdAttrs) SetFileOffset(off uint64) {
+	bb := make([]byte, 8)
+	binary.LittleEndian.PutUint64(bb, off)
+	c[BTRFS_SEND_A_FILE_OFFSET] = bb
 }
 
 func (c CmdAttrs) GetPath() string {
 	return string(c[BTRFS_SEND_A_PATH])
 }
 
+func (c CmdAttrs) SetPath(path string) {
+	c[BTRFS_SEND_A_PATH] = []byte(path)
+}
+
 func (c CmdAttrs) GetPathLink() string {
 	return string(c[BTRFS_SEND_A_PATH_LINK])
+}
+
+func (c CmdAttrs) SetPathLink(path string) {
+	c[BTRFS_SEND_A_PATH_LINK] = []byte(path)
 }
 
 func (c CmdAttrs) GetPathTo() string {
 	return string(c[BTRFS_SEND_A_PATH_TO])
 }
 
+func (c CmdAttrs) SetPathTo(path string) {
+	c[BTRFS_SEND_A_PATH_TO] = []byte(path)
+}
+
 func (c CmdAttrs) GetUUID() (uuid.UUID, error) {
 	return uuid.FromBytes(c[BTRFS_SEND_A_UUID])
+}
+
+func (c CmdAttrs) SetUUID(uuid uuid.UUID) {
+	c[BTRFS_SEND_A_UUID] = uuid[:]
 }
 
 func (c CmdAttrs) GetCloneUUID() (uuid.UUID, error) {
 	return uuid.FromBytes(c[BTRFS_SEND_A_CLONE_UUID])
 }
 
+func (c CmdAttrs) SetCloneUUID(uuid uuid.UUID) {
+	c[BTRFS_SEND_A_CLONE_UUID] = uuid[:]
+}
+
 func (c CmdAttrs) GetCtransid() uint64 {
 	return binary.LittleEndian.Uint64(c[BTRFS_SEND_A_CTRANSID])
+}
+
+func (c CmdAttrs) SetCtransid(ctransid uint64) {
+	bb := make([]byte, 8)
+	binary.LittleEndian.PutUint64(bb, ctransid)
+	c[BTRFS_SEND_A_CTRANSID] = bb
 }
 
 func (c CmdAttrs) GetCloneCtransid() uint64 {
 	return binary.LittleEndian.Uint64(c[BTRFS_SEND_A_CLONE_CTRANSID])
 }
 
+func (c CmdAttrs) SetCloneCtransid(ctransid uint64) {
+	bb := make([]byte, 8)
+	binary.LittleEndian.PutUint64(bb, ctransid)
+	c[BTRFS_SEND_A_CLONE_CTRANSID] = bb
+}
+
 func (c CmdAttrs) GetIno() uint64 {
 	return binary.LittleEndian.Uint64(c[BTRFS_SEND_A_INO])
+}
+
+func (c CmdAttrs) SetIno(ino uint64) {
+	bb := make([]byte, 8)
+	binary.LittleEndian.PutUint64(bb, ino)
+	c[BTRFS_SEND_A_INO] = bb
 }
 
 func (c CmdAttrs) GetMode32() uint32 {
 	return binary.LittleEndian.Uint32(c[BTRFS_SEND_A_MODE])
 }
 
+func (c CmdAttrs) SetMode32(mode uint32) {
+	bb := make([]byte, 4)
+	binary.LittleEndian.PutUint32(bb, mode)
+	c[BTRFS_SEND_A_MODE] = bb
+}
+
 func (c CmdAttrs) GetMode64() uint64 {
 	return binary.LittleEndian.Uint64(c[BTRFS_SEND_A_MODE])
+}
+
+func (c CmdAttrs) SetMode64(mode uint64) {
+	bb := make([]byte, 8)
+	binary.LittleEndian.PutUint64(bb, mode)
+	c[BTRFS_SEND_A_MODE] = bb
 }
 
 func (c CmdAttrs) GetRdev() uint64 {
 	return binary.LittleEndian.Uint64(c[BTRFS_SEND_A_RDEV])
 }
 
+func (c CmdAttrs) SetRdev(rdev uint64) {
+	bb := make([]byte, 8)
+	binary.LittleEndian.PutUint64(bb, rdev)
+	c[BTRFS_SEND_A_RDEV] = bb
+}
+
 func (c CmdAttrs) GetUnencodedFileLen() uint64 {
 	return binary.LittleEndian.Uint64(c[BTRFS_SEND_A_UNENCODED_FILE_LEN])
+}
+
+func (c CmdAttrs) SetUnencodedFileLen(len uint64) {
+	bb := make([]byte, 8)
+	binary.LittleEndian.PutUint64(bb, len)
+	c[BTRFS_SEND_A_UNENCODED_FILE_LEN] = bb
 }
 
 func (c CmdAttrs) GetUnencodedLen() uint64 {
 	return binary.LittleEndian.Uint64(c[BTRFS_SEND_A_UNENCODED_LEN])
 }
 
+func (c CmdAttrs) SetUnencodedLen(len uint64) {
+	bb := make([]byte, 8)
+	binary.LittleEndian.PutUint64(bb, len)
+	c[BTRFS_SEND_A_UNENCODED_LEN] = bb
+}
+
 func (c CmdAttrs) GetUnencodedOffset() uint64 {
 	return binary.LittleEndian.Uint64(c[BTRFS_SEND_A_UNENCODED_OFFSET])
+}
+
+func (c CmdAttrs) SetUnencodedOffset(off uint64) {
+	bb := make([]byte, 8)
+	binary.LittleEndian.PutUint64(bb, off)
+	c[BTRFS_SEND_A_UNENCODED_OFFSET] = bb
 }
 
 func (c CmdAttrs) GetCompressionType() btrfs.CompressionType {
 	return btrfs.CompressionType(binary.LittleEndian.Uint32(c[BTRFS_SEND_A_COMPRESSION]))
 }
 
+func (c CmdAttrs) SetCompressionType(ct btrfs.CompressionType) {
+	bb := make([]byte, 4)
+	binary.LittleEndian.PutUint32(bb, uint32(ct))
+	c[BTRFS_SEND_A_COMPRESSION] = bb
+}
+
 func (c CmdAttrs) GetEncryptionType() uint32 {
 	return binary.LittleEndian.Uint32(c[BTRFS_SEND_A_ENCRYPTION])
+}
+
+func (c CmdAttrs) SetEncryptionType(et uint32) {
+	bb := make([]byte, 4)
+	binary.LittleEndian.PutUint32(bb, et)
+	c[BTRFS_SEND_A_ENCRYPTION] = bb
 }
 
 func (c CmdAttrs) GetCloneLen() uint64 {
 	return binary.LittleEndian.Uint64(c[BTRFS_SEND_A_CLONE_LEN])
 }
 
+func (c CmdAttrs) SetCloneLen(len uint64) {
+	bb := make([]byte, 8)
+	binary.LittleEndian.PutUint64(bb, len)
+	c[BTRFS_SEND_A_CLONE_LEN] = bb
+}
+
 func (c CmdAttrs) GetCloneOffset() uint64 {
 	return binary.LittleEndian.Uint64(c[BTRFS_SEND_A_CLONE_OFFSET])
+}
+
+func (c CmdAttrs) SetCloneOffset(off uint64) {
+	bb := make([]byte, 8)
+	binary.LittleEndian.PutUint64(bb, off)
+	c[BTRFS_SEND_A_CLONE_OFFSET] = bb
 }
 
 func (c CmdAttrs) GetClonePath() string {
 	return string(c[BTRFS_SEND_A_CLONE_PATH])
 }
 
+func (c CmdAttrs) SetClonePath(path string) {
+	c[BTRFS_SEND_A_CLONE_PATH] = []byte(path)
+}
+
 func (c CmdAttrs) GetCloneCTransid() uint64 {
 	return binary.LittleEndian.Uint64(c[BTRFS_SEND_A_CLONE_CTRANSID])
+}
+
+func (c CmdAttrs) SetCloneCTransid(ctransid uint64) {
+	bb := make([]byte, 8)
+	binary.LittleEndian.PutUint64(bb, ctransid)
+	c[BTRFS_SEND_A_CLONE_CTRANSID] = bb
 }
 
 func (c CmdAttrs) GetXattrName() string {
 	return string(c[BTRFS_SEND_A_XATTR_NAME])
 }
 
+func (c CmdAttrs) SetXattrName(name string) {
+	c[BTRFS_SEND_A_XATTR_NAME] = []byte(name)
+}
+
 func (c CmdAttrs) GetXattrData() []byte {
 	return c[BTRFS_SEND_A_XATTR_DATA]
+}
+
+func (c CmdAttrs) SetXattrData(data []byte) {
+	c[BTRFS_SEND_A_XATTR_DATA] = data
 }
 
 func (c CmdAttrs) GetSize() uint64 {
 	return binary.LittleEndian.Uint64(c[BTRFS_SEND_A_SIZE])
 }
 
+func (c CmdAttrs) SetSize(size uint64) {
+	bb := make([]byte, 8)
+	binary.LittleEndian.PutUint64(bb, size)
+	c[BTRFS_SEND_A_SIZE] = bb
+}
+
 func (c CmdAttrs) GetUid() uint64 {
 	return binary.LittleEndian.Uint64(c[BTRFS_SEND_A_UID])
 }
 
+func (c CmdAttrs) SetUid(uid uint64) {
+	bb := make([]byte, 8)
+	binary.LittleEndian.PutUint64(bb, uid)
+	c[BTRFS_SEND_A_UID] = bb
+}
+
 func (c CmdAttrs) GetGid() uint64 {
 	return binary.LittleEndian.Uint64(c[BTRFS_SEND_A_GID])
+}
+
+func (c CmdAttrs) SetGid(gid uint64) {
+	bb := make([]byte, 8)
+	binary.LittleEndian.PutUint64(bb, gid)
+	c[BTRFS_SEND_A_GID] = bb
 }
 
 func (c CmdAttrs) GetAtime() (time.Time, error) {
@@ -308,12 +507,32 @@ func (c CmdAttrs) GetAtime() (time.Time, error) {
 	return ts.Time(), nil
 }
 
+func (c CmdAttrs) SetAtime(atime time.Time) {
+	var buf bytes.Buffer
+	ts := btrfs.BtrfsTimespec{
+		Sec:  uint64(atime.Unix()),
+		Nsec: uint32(atime.Nanosecond()),
+	}
+	binary.Write(&buf, binary.LittleEndian, &ts)
+	c[BTRFS_SEND_A_ATIME] = buf.Bytes()
+}
+
 func (c CmdAttrs) GetMtime() (time.Time, error) {
 	var ts btrfs.BtrfsTimespec
 	if err := binary.Read(bytes.NewReader(c[BTRFS_SEND_A_MTIME]), binary.LittleEndian, &ts); err != nil {
 		return time.Time{}, err
 	}
 	return ts.Time(), nil
+}
+
+func (c CmdAttrs) SetMtime(mtime time.Time) {
+	var buf bytes.Buffer
+	ts := btrfs.BtrfsTimespec{
+		Sec:  uint64(mtime.Unix()),
+		Nsec: uint32(mtime.Nanosecond()),
+	}
+	binary.Write(&buf, binary.LittleEndian, &ts)
+	c[BTRFS_SEND_A_MTIME] = buf.Bytes()
 }
 
 func (c CmdAttrs) GetOtime() (time.Time, error) {
@@ -324,6 +543,16 @@ func (c CmdAttrs) GetOtime() (time.Time, error) {
 	return ts.Time(), nil
 }
 
+func (c CmdAttrs) SetOtime(otime time.Time) {
+	var buf bytes.Buffer
+	ts := btrfs.BtrfsTimespec{
+		Sec:  uint64(otime.Unix()),
+		Nsec: uint32(otime.Nanosecond()),
+	}
+	binary.Write(&buf, binary.LittleEndian, &ts)
+	c[BTRFS_SEND_A_OTIME] = buf.Bytes()
+}
+
 func (c CmdAttrs) GetCtime() (time.Time, error) {
 	var ts btrfs.BtrfsTimespec
 	if err := binary.Read(bytes.NewReader(c[BTRFS_SEND_A_CTIME]), binary.LittleEndian, &ts); err != nil {
@@ -332,26 +561,66 @@ func (c CmdAttrs) GetCtime() (time.Time, error) {
 	return ts.Time(), nil
 }
 
+func (c CmdAttrs) SetCtime(ctime time.Time) {
+	var buf bytes.Buffer
+	ts := btrfs.BtrfsTimespec{
+		Sec:  uint64(ctime.Unix()),
+		Nsec: uint32(ctime.Nanosecond()),
+	}
+	binary.Write(&buf, binary.LittleEndian, &ts)
+	c[BTRFS_SEND_A_CTIME] = buf.Bytes()
+}
+
 func (c CmdAttrs) GetVerityBlockSize() uint32 {
 	return binary.LittleEndian.Uint32(c[BTRFS_SEND_A_VERITY_BLOCK_SIZE])
+}
+
+func (c CmdAttrs) SetVerityBlockSize(blockSize uint32) {
+	bb := make([]byte, 4)
+	binary.LittleEndian.PutUint32(bb, blockSize)
+	c[BTRFS_SEND_A_VERITY_BLOCK_SIZE] = bb
 }
 
 func (c CmdAttrs) GetVeritySalt() []byte {
 	return c[BTRFS_SEND_A_VERITY_SALT_DATA]
 }
 
+func (c CmdAttrs) SetVeritySalt(salt []byte) {
+	c[BTRFS_SEND_A_VERITY_SALT_DATA] = salt
+}
+
 func (c CmdAttrs) GetVeritySig() []byte {
 	return c[BTRFS_SEND_A_VERITY_SIG_DATA]
+}
+
+func (c CmdAttrs) SetVeritySig(sig []byte) {
+	c[BTRFS_SEND_A_VERITY_SIG_DATA] = sig
 }
 
 func (c CmdAttrs) GetVerityAlgorithm() uint8 {
 	return c[BTRFS_SEND_A_VERITY_ALGORITHM][0]
 }
 
+func (c CmdAttrs) SetVerityAlgorithm(algorithm uint8) {
+	c[BTRFS_SEND_A_VERITY_ALGORITHM] = []byte{algorithm}
+}
+
 func (c CmdAttrs) GetFallocateMode() uint32 {
 	return binary.LittleEndian.Uint32(c[BTRFS_SEND_A_FALLOCATE_MODE])
 }
 
+func (c CmdAttrs) SetFallocateMode(mode uint32) {
+	bb := make([]byte, 4)
+	binary.LittleEndian.PutUint32(bb, mode)
+	c[BTRFS_SEND_A_FALLOCATE_MODE] = bb
+}
+
 func (c CmdAttrs) GetFileattr() uint32 {
 	return binary.LittleEndian.Uint32(c[BTRFS_SEND_A_FILEATTR])
+}
+
+func (c CmdAttrs) SetFileattr(fileattr uint32) {
+	bb := make([]byte, 4)
+	binary.LittleEndian.PutUint32(bb, fileattr)
+	c[BTRFS_SEND_A_FILEATTR] = bb
 }
