@@ -20,6 +20,10 @@ It will manage snapshots and their mirrors according to its configuration or com
 
 **Cgo is used to generate certain constants and structures in the codebase, but not at compile time*
 
+## Command Usage
+
+Documentation on the `btrsync` utility can be found in `docs/`.
+
 ## Library Usage
 
 For comprehensive usage of the bindings, see the go.dev. But below are overviews of some common operations:

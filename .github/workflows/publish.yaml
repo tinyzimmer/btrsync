@@ -1,0 +1,46 @@
+name: Build and Publish
+
+on:
+  push:
+    tags: [ v* ]
+
+jobs:
+
+  build-release:
+
+    name: Build Release Binaries
+    runs-on: ubuntu-latest
+    steps:
+
+      - name: Checkout Code
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: '1.19'
+
+      - name: Cache Go Modules
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Fetch Go Modules
+        shell: bash
+        run: go mod download -x
+
+      - name: Build Binaries
+        shell: bash
+        run: make dist
+
+      - name: Publish Binaries
+        uses: softprops/action-gh-release@v1
+        with:
+          files: dist/*

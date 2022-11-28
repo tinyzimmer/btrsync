@@ -21,3 +21,12 @@ install-tip: build-tip
 generate:
 	GO111MODULE=off go get golang.org/x/tools/cmd/stringer
 	go generate ./...
+
+.PHONY: dist
+dist:
+	go install github.com/mitchellh/gox@latest
+	cd cmd/btrsync ; CGO_ENABLED=0 gox \
+		-os="linux" -arch="amd64 arm64" \
+		-ldflags "-s -w -X main.version=$(shell git describe --tags --always --dirty)" \
+		-output "../../dist/{{.Dir}}_{{.OS}}_{{.Arch}}" 
+	upx --best --lzma dist/*
