@@ -170,7 +170,8 @@ import (
 
 func main() {
 	// First create a read-only snapshot for sending
-	err := btrfs.CreateSnapshot("/mnt/btrfs/subvol", btrfs.WithSnapshotPath("/mnt/btrfs/subvol/snapshots/snapshot-1"))
+	err := btrfs.CreateSnapshot("/mnt/btrfs/subvol", 
+		btrfs.WithSnapshotPath("/mnt/btrfs/subvol/snapshots/snapshot-1"))
 	if err != nil { 
 		panic(err)
 	}
@@ -187,7 +188,9 @@ func main() {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		errs <- btrfs.Send("/mnt/btrfs/subvol/snapshots/snapshot-1", opts, btrfs.SendCompressedData())
+		errs <- btrfs.Send(
+			"/mnt/btrfs/subvol/snapshots/snapshot-1", 
+			opts, btrfs.SendCompressedData())
 	}()
 
 	// We can receive directly from the pipe above, in this example to another local btrfs volume
