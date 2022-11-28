@@ -112,14 +112,18 @@ func pruneMirrors() error {
 					continue
 				}
 				manager, err := syncmanager.New(&syncmanager.Config{
-					SubvolumeIdentifier: subvol.GetName(),
-					FullSubvolumePath:   sourcePath,
-					SnapshotName:        subvol.GetSnapshotName(volumeName),
-					SnapshotDirectory:   snapDir,
 					Logger:              logger,
 					Verbosity:           conf.Verbosity,
+					SubvolumeIdentifier: subvol.GetName(),
+					FullSubvolumePath:   sourcePath,
+					SnapshotDirectory:   snapDir,
+					SnapshotName:        subvol.GetSnapshotName(volumeName),
 					MirrorPath:          mirror.Path,
 					MirrorFormat:        mirror.Format,
+					SSHUser:             conf.ResolveMirrorSSHUser(mirror.Name),
+					SSHPassword:         conf.ResolveMirrorSSHPassword(mirror.Name),
+					SSHKeyFile:          conf.ResolveMirrorSSHKeyFile(mirror.Name),
+					SSHHostKey:          conf.ResolveMirrorSSHHostKey(mirror.Name),
 				})
 				if err != nil {
 					return err
