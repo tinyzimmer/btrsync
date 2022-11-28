@@ -178,7 +178,7 @@ func main() {
 
 	// There are many options for where and how to send the data. 
 	// Below is an example of sending it directly to a pipe with encoded writes where applicable
-	opt, pipeOpt, err := btrfs.SendToPipe()
+	pipeOpt, sendPipe, err := btrfs.SendToPipe()
 	if err != nil {
 		panic(err)
 	}
@@ -194,7 +194,7 @@ func main() {
 	}()
 
 	// We can receive directly from the pipe above, in this example to another local btrfs volume
-	err = btrfs.ProcessSendStream(pipe, 
+	err = btrfs.ProcessSendStream(sendPipe, 
 		receive.HonorEndCommand(),
 		receive.To(local.New("/mnt/btrfs-2/subvol"))
 	)
