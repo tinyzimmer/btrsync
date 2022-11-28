@@ -22,7 +22,8 @@ It will manage snapshots and their mirrors according to its configuration or com
 
 ## Command Usage
 
-Documentation on the `btrsync` utility can be found in `docs/`.
+Documentation on the `btrsync` utility can be found in [`docs/`](docs/btrsync.md). An example of the configuration format
+can be found in `btrsync.example.toml`.
 
 ## Library Usage
 

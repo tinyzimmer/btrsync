@@ -52,8 +52,19 @@ func Execute(version string) {
 
 func NewRootCommand(version string) *cobra.Command {
 	var rootCommand = &cobra.Command{
-		Use:               "btrsync [flags] <source> <destination>",
-		Short:             "A tool for syncing btrfs subvolumes and snapshots",
+		Use:   "btrsync [flags] <source> <destination>",
+		Short: "A tool for syncing btrfs subvolumes and snapshots",
+		Long: `
+A tool for syncing btrfs subvolumes and snapshots. Most configurations are read in
+from a btrsync.toml file. The config file is searched for in the following locations:
+
+ - The --config flag
+ - The current directory
+ - $XDG_CONFIG_HOME/btrsync
+ - /etc/btrsync
+
+ To get started easily with a configuration you can use the 'btrsync config generate' command.
+`,
 		SilenceErrors:     true,
 		SilenceUsage:      true,
 		Version:           version,
