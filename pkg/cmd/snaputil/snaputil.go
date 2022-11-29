@@ -67,6 +67,7 @@ func ResolveSubvolumeDetails(logger *log.Logger, verbosity int, subvolumePath, s
 		if err != nil {
 			time.Sleep(time.Millisecond * 100)
 		}
+		retries++
 	}
 	if err != nil {
 		return nil, err

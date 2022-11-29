@@ -98,6 +98,7 @@ func handleSnapshots() error {
 				logLevel(0, "Ensuring snapshots for subvolume %s/%s...", vol.Path, subvol.Path)
 				snapDir := conf.ResolveSnapshotPath(volumeName, subvolName)
 				sourcePath := filepath.Join(vol.Path, subvol.Path)
+				logLevel(2, "Initiating snapshot manager for %s/%s...", vol.Path, subvol.Path)
 				manager, err := snapmanager.New(&snapmanager.Config{
 					FullSubvolumePath:         sourcePath,
 					SnapshotName:              subvol.GetSnapshotName(volumeName),
@@ -113,9 +114,11 @@ func handleSnapshots() error {
 				if err != nil {
 					return err
 				}
+				logLevel(2, "Running snapshots for %s/%s...", vol.Path, subvol.Path)
 				if err := manager.EnsureMostRecentSnapshot(); err != nil {
 					return err
 				}
+				logLevel(2, "Pruning expired snapshots for %s/%s...", vol.Path, subvol.Path)
 				if err := manager.PruneSnapshots(); err != nil {
 					return err
 				}

@@ -67,9 +67,9 @@ func (n *localReceiver) Snapshot(ctx receivers.ReceiveContext, path string, uuid
 		}
 		rbtree, err = btrfs.BuildRBTree(root.Path)
 		if err != nil {
-			retries++
 			time.Sleep(100 * time.Millisecond)
 		}
+		retries++
 	}
 	if rbtree == nil {
 		return fmt.Errorf("failed to build rbtree for %s: %w", root, err)

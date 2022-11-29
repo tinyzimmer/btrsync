@@ -242,6 +242,7 @@ func (sm *localSubvolumeManager) pruneLocalMirror(ctx context.Context) error {
 		if err != nil {
 			time.Sleep(time.Millisecond * 100)
 		}
+		retries++
 	}
 	if err != nil {
 		return fmt.Errorf("error building tree at %q: %w", sm.mirrorPath, err)
