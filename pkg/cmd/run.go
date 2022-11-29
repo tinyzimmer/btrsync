@@ -81,7 +81,8 @@ func daemon(cmd *cobra.Command, args []string) error {
 
 func handleSnapshots() error {
 	queue := queue.NewConcurrentQueue(queue.WithMaxConcurrency(conf.Concurrency), queue.WithLogger(logger, conf.Verbosity))
-	for _, vol := range conf.Volumes {
+	for _, v := range conf.Volumes {
+		vol := v
 		volumeName := vol.GetName()
 		if vol.Disabled {
 			logLevel(1, "Skipping disabled volume %s: %s", volumeName, vol.Path)
@@ -131,13 +132,15 @@ func handleSnapshots() error {
 
 func handleSync() error {
 	queue := queue.NewConcurrentQueue(queue.WithMaxConcurrency(conf.Concurrency), queue.WithLogger(logger, conf.Verbosity))
-	for _, vol := range conf.Volumes {
+	for _, v := range conf.Volumes {
+		vol := v
 		volumeName := vol.GetName()
 		if vol.Disabled {
 			logLevel(1, "Skipping disabled volume %s: %s", volumeName, vol.Path)
 			continue
 		}
-		for _, subvol := range vol.Subvolumes {
+		for _, s := range vol.Subvolumes {
+			subvol := s
 			subvolName := subvol.GetName()
 			if subvol.Disabled {
 				logLevel(1, "Skipping disabled subvolume %s: %s", subvolName, subvol.Path)
