@@ -22,6 +22,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/tinyzimmer/btrsync/pkg/cmd/queue"
 	"github.com/tinyzimmer/btrsync/pkg/cmd/snapmanager"
 	"github.com/tinyzimmer/btrsync/pkg/cmd/syncmanager"
 )
@@ -79,48 +80,54 @@ func daemon(cmd *cobra.Command, args []string) error {
 }
 
 func handleSnapshots() error {
+	queue := queue.NewConcurrentQueue(queue.WithMaxConcurrency(conf.Concurrency), queue.WithLogger(logger, conf.Verbosity))
 	for _, vol := range conf.Volumes {
 		volumeName := vol.GetName()
 		if vol.Disabled {
 			logLevel(1, "Skipping disabled volume %s: %s", volumeName, vol.Path)
 			continue
 		}
-		for _, subvol := range vol.Subvolumes {
-			subvolName := subvol.GetName()
-			if subvol.Disabled {
-				logLevel(1, "Skipping disabled subvolume %s: %s", subvolName, subvol.Path)
-				continue
-			}
-			logLevel(0, "Ensuring snapshots for subvolume %s/%s...", vol.Path, subvol.Path)
-			snapDir := conf.ResolveSnapshotPath(volumeName, subvolName)
-			sourcePath := filepath.Join(vol.Path, subvol.Path)
-			manager, err := snapmanager.New(&snapmanager.Config{
-				FullSubvolumePath:         sourcePath,
-				SnapshotName:              subvol.GetSnapshotName(volumeName),
-				SnapshotDirectory:         snapDir,
-				SnapshotInterval:          conf.ResolveSnapshotInterval(volumeName, subvolName),
-				SnapshotMinimumRetention:  conf.ResolveSnapshotMinimumRetention(volumeName, subvolName),
-				SnapshotRetention:         conf.ResolveSnapshotRetention(volumeName, subvolName),
-				SnapshotRetentionInterval: conf.ResolveSnapshotRetentionInterval(volumeName, subvolName),
-				TimeFormat:                conf.ResolveTimeFormat(volumeName, subvolName),
-				Logger:                    logger,
-				Verbosity:                 conf.Verbosity,
+		for _, s := range vol.Subvolumes {
+			subvol := s
+			queue.Push(func() error {
+				subvolName := subvol.GetName()
+				if subvol.Disabled {
+					logLevel(1, "Skipping disabled subvolume %s: %s", subvolName, subvol.Path)
+					return nil
+				}
+				logLevel(0, "Ensuring snapshots for subvolume %s/%s...", vol.Path, subvol.Path)
+				snapDir := conf.ResolveSnapshotPath(volumeName, subvolName)
+				sourcePath := filepath.Join(vol.Path, subvol.Path)
+				manager, err := snapmanager.New(&snapmanager.Config{
+					FullSubvolumePath:         sourcePath,
+					SnapshotName:              subvol.GetSnapshotName(volumeName),
+					SnapshotDirectory:         snapDir,
+					SnapshotInterval:          conf.ResolveSnapshotInterval(volumeName, subvolName),
+					SnapshotMinimumRetention:  conf.ResolveSnapshotMinimumRetention(volumeName, subvolName),
+					SnapshotRetention:         conf.ResolveSnapshotRetention(volumeName, subvolName),
+					SnapshotRetentionInterval: conf.ResolveSnapshotRetentionInterval(volumeName, subvolName),
+					TimeFormat:                conf.ResolveTimeFormat(volumeName, subvolName),
+					Logger:                    logger,
+					Verbosity:                 conf.Verbosity,
+				})
+				if err != nil {
+					return err
+				}
+				if err := manager.EnsureMostRecentSnapshot(); err != nil {
+					return err
+				}
+				if err := manager.PruneSnapshots(); err != nil {
+					return err
+				}
+				return nil
 			})
-			if err != nil {
-				return err
-			}
-			if err := manager.EnsureMostRecentSnapshot(); err != nil {
-				return err
-			}
-			if err := manager.PruneSnapshots(); err != nil {
-				return err
-			}
 		}
 	}
-	return nil
+	return queue.Wait()
 }
 
 func handleSync() error {
+	queue := queue.NewConcurrentQueue(queue.WithMaxConcurrency(conf.Concurrency), queue.WithLogger(logger, conf.Verbosity))
 	for _, vol := range conf.Volumes {
 		volumeName := vol.GetName()
 		if vol.Disabled {
@@ -141,37 +148,41 @@ func handleSync() error {
 			logLevel(0, "Running sync for subvolume %s/%s...", vol.Path, subvol.Path)
 			snapDir := conf.ResolveSnapshotPath(volumeName, subvolName)
 			sourcePath := filepath.Join(vol.Path, subvol.Path)
-			for _, mirror := range mirrors {
-				if mirror.Disabled {
-					logLevel(1, "Skipping disabled mirror: %s", mirror.Path)
-					continue
-				}
-				manager, err := syncmanager.New(&syncmanager.Config{
-					Logger:              logger,
-					Verbosity:           conf.Verbosity,
-					SubvolumeIdentifier: subvol.GetSnapshotName(volumeName),
-					FullSubvolumePath:   sourcePath,
-					SnapshotDirectory:   snapDir,
-					SnapshotName:        subvol.GetSnapshotName(volumeName),
-					MirrorPath:          mirror.Path,
-					MirrorFormat:        mirror.Format,
-					SSHUser:             conf.ResolveMirrorSSHUser(mirror.Name),
-					SSHPassword:         conf.ResolveMirrorSSHPassword(mirror.Name),
-					SSHKeyFile:          conf.ResolveMirrorSSHKeyFile(mirror.Name),
-					SSHHostKey:          conf.ResolveMirrorSSHHostKey(mirror.Name),
+			for _, m := range mirrors {
+				mirror := m
+				queue.Push(func() error {
+					if mirror.Disabled {
+						logLevel(1, "Skipping disabled mirror: %s", mirror.Path)
+						return nil
+					}
+					manager, err := syncmanager.New(&syncmanager.Config{
+						Logger:              logger,
+						Verbosity:           conf.Verbosity,
+						SubvolumeIdentifier: subvol.GetSnapshotName(volumeName),
+						FullSubvolumePath:   sourcePath,
+						SnapshotDirectory:   snapDir,
+						SnapshotName:        subvol.GetSnapshotName(volumeName),
+						MirrorPath:          mirror.Path,
+						MirrorFormat:        mirror.Format,
+						SSHUser:             conf.ResolveMirrorSSHUser(mirror.Name),
+						SSHPassword:         conf.ResolveMirrorSSHPassword(mirror.Name),
+						SSHKeyFile:          conf.ResolveMirrorSSHKeyFile(mirror.Name),
+						SSHHostKey:          conf.ResolveMirrorSSHHostKey(mirror.Name),
+					})
+					if err != nil {
+						return err
+					}
+					defer manager.Close()
+					if err := manager.Sync(context.Background()); err != nil {
+						return err
+					}
+					if err := manager.Prune(context.Background()); err != nil {
+						return err
+					}
+					return nil
 				})
-				if err != nil {
-					return err
-				}
-				defer manager.Close()
-				if err := manager.Sync(context.Background()); err != nil {
-					return err
-				}
-				if err := manager.Prune(context.Background()); err != nil {
-					return err
-				}
 			}
 		}
 	}
-	return nil
+	return queue.Wait()
 }

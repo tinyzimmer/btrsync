@@ -73,3 +73,8 @@ format = "zstd"    # The compression format to use.
 name = "local-dir"
 path = "/mnt/btrfs-backups-dir"
 format = "directory"
+
+[[daemon]]
+# The interval to run the sync operation. This can be overridden on the
+# command line.
+scan_interval = "1m"
