@@ -11,7 +11,6 @@ Beyond the native (no CGO*) bindings for working with BTRFS file systems provide
  * Manage and sync snapshots to local and remote locations
  * Mirror to compressed files as well as both btrfs and non-btrfs volumes
  * Automatic volume and subvolume discovery for easy config generation
- * Time machine app for browsing local snapshots
  * Recovery of interrupted transfers by natively scanning the btrfs send streams and tracking offsets
  * Mount a btrfs sendfile as an in-memory FUSE filesystem (incremental sendfiles not supported yet)
 
