@@ -1,6 +1,6 @@
 # Log verbosity level (0-5)
 verbosity = 0
-# How many sync operations to run at a time (not yet finished)
+# How many sync operations to run at a time
 concurrency = 1
 
 # Below are configurations for snapshot operations. All the below configurations
