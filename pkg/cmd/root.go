@@ -81,6 +81,7 @@ from a btrsync.toml file. The config file is searched for in the following locat
 	rootCommand.AddCommand(NewTreeCommand())
 	rootCommand.AddCommand(NewMountCommand())
 	rootCommand.AddCommand(NewConfigCommand())
+	rootCommand.AddCommand(NewServeCommand())
 
 	return rootCommand
 }

@@ -107,7 +107,7 @@ type Subvolume struct {
 	// unset either the volume or global value is used respectively.
 	SnapshotsDir string `mapstructure:"snapshots_dir" toml:"snapshots_dir,omitempty"`
 	// SnapshotName is the name prefix to give snapshots of this subvolume. Defaults to the
-	// subvolume name.
+	// format <volume_name>.<subvolume_name>.
 	SnapshotName string `mapstructure:"snapshot_name" toml:"snapshot_name,omitempty"`
 	// SnapshotInterval is the interval between snapshots for this subvolume. If left unset
 	// either the volume or global value is used respectively.
@@ -177,6 +177,9 @@ type ServerConfig struct {
 	TLSCertFile string `mapstructure:"tls_cert_file" toml:"tls_cert_file,omitempty"`
 	// TLSKeyFile is the path to the TLS key file to use for the server.
 	TLSKeyFile string `mapstructure:"tls_key_file" toml:"tls_key_file,omitempty"`
+	// DataDirectory is the directory to store data in for the server. Defaults to the
+	// current working directory.
+	DataDirectory string `mapstructure:"data_directory" toml:"data_directory,omitempty"`
 }
 
 // ServerProto is the protocol to use for the server.
@@ -194,6 +197,23 @@ const (
 	// ServerProtoUDP is the UDP protocol.
 	ServerProtoUDP ServerProto = "udp"
 )
+
+func (p *ServerProto) Type() string {
+	return "string"
+}
+
+func (p ServerProto) String() string { return string(p) }
+
+func (p *ServerProto) Set(s string) error {
+	proto := ServerProto(s)
+	p = &proto
+	switch proto {
+	case ServerProtoHTTP, ServerProtoTCP, ServerProtoUnix, ServerProtoUnixPacket, ServerProtoUDP:
+		return nil
+	default:
+		return fmt.Errorf("invalid protocol: %s", s)
+	}
+}
 
 // MirrorFormat is the format of the mirror path.
 type MirrorFormat string
